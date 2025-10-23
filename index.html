@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Top 100 MusicBrainz Editors</title>
+  <style>
+    :root { color-scheme: light dark; --bg:#0b0b0c; --card:#121316; --fg:#e9eaee; --muted:#9aa1ac; --accent:#6aa3ff; }
+    body { margin:0; font:16px/1.45 system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; background:var(--bg); color:var(--fg); }
+    .wrap { max-width:1000px; margin:32px auto; padding:0 16px; }
+    header { display:flex; flex-wrap:wrap; align-items:end; gap:12px; justify-content:space-between; }
+    h1 { font-size:clamp(22px, 3vw, 32px); margin:0; letter-spacing:.2px; }
+    .meta { color:var(--muted); font-size:14px; }
+    .controls { display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin:14px 0 0; }
+    input[type="search"] { padding:10px 12px; border-radius:10px; border:1px solid #2a2e37; background:#0f1114; color:var(--fg); outline:none; min-width:240px; }
+    .card { background:var(--card); border:1px solid #1d2129; border-radius:16px; box-shadow:0 10px 30px rgb(0 0 0 / 25%); overflow:hidden; margin-top:16px; }
+    table { width:100%; border-collapse:collapse; }
+    thead th { text-align:left; font-weight:600; font-size:13px; color:var(--muted); letter-spacing:.3px; padding:14px 14px; border-bottom:1px solid #1d2129; }
+    tbody td { padding:14px; border-bottom:1px solid #1a1d24; }
+    tbody tr:hover { background:#101218; }
+    .rank { width:70px; color:#cbd3df; font-variant-numeric:tabular-nums; }
+    .edits { font-variant-numeric:tabular-nums; text-align:right; }
+    .name { font-weight:600; }
+    .footer { color:var(--muted); font-size:13px; margin:12px 2px; }
+    .tag { display:inline-block; padding:2px 8px; border:1px solid #243047; border-radius:999px; font-size:12px; margin-left:6px; color:#b9c7ff; }
+    .link { color:var(--accent); text-decoration:none; }
+    .link:hover { text-decoration:underline; }
+    .hidden { display:none; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <div>
+        <h1>Top 100 MusicBrainz Editors</h1>
+        <div class="meta">
+          Source: <code id="csv-src">top_editors.csv</code> •
+          <span id="last-updated">Last updated: —</span>
+        </div>
+      </div>
+      <div class="controls">
+        <input id="q" type="search" placeholder="Filter by editor…" aria-label="Filter editors" />
+      </div>
+    </header>
+
+    <section class="card">
+      <table id="table">
+        <thead>
+          <tr>
+            <th class="rank">#</th>
+            <th>Editor</th>
+            <th class="edits">Edits</th>
+          </tr>
+        </thead>
+        <tbody id="tbody">
+          <tr><td colspan="3" style="padding:18px;color:#9aa1ac;">Loading…</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+  
+  </div>
+
+  <script>
+    // === Config ===
+    const urlParam = new URL(location.href).searchParams.get('csv');
+    const CSV_URL = urlParam || 'top_editors.csv'; // default: same folder
+    const CSV_EXPECTED_HEADERS = ['editor','edits']; // case-insensitive; second column must be numeric
+    const MB_USER_URL = (name) => `https://musicbrainz.org/user/${encodeURIComponent(name)}`;
+
+    // Minimal CSV parser (handles quoted fields with commas and quotes)
+    function parseCSV(text) {
+      const rows = [];
+      let i = 0, field = '', row = [], inQuotes = false;
+      while (i < text.length) {
+        const c = text[i];
+        if (inQuotes) {
+          if (c === '"') {
+            if (text[i+1] === '"') { field += '"'; i++; } // escaped quote
+            else { inQuotes = false; }
+          } else {
+            field += c;
+          }
+        } else {
+          if (c === '"') inQuotes = true;
+          else if (c === ',') { row.push(field); field = ''; }
+          else if (c === '\n') { row.push(field); rows.push(row); row = []; field = ''; }
+          else if (c === '\r') { /* ignore CR, handle at LF */ }
+          else { field += c; }
+        }
+        i++;
+      }
+      // push last field/row if file doesn't end with newline
+      if (field.length || row.length) { row.push(field); rows.push(row); }
+      // remove empty trailing rows
+      return rows.filter(r => r.some(cell => cell.trim() !== ''));
+    }
+
+  function detectColumns(headerRow) {
+  const raw = headerRow;
+  const headers = raw.map(h => h.trim());
+  const lower   = headers.map(h => h.toLowerCase());
+
+  // name column: prefer editor_name, then name, then anything with 'editor' or 'user'
+  let nameIdx =
+    lower.indexOf('editor_name') !== -1 ? lower.indexOf('editor_name') :
+    lower.indexOf('name')        !== -1 ? lower.indexOf('name') :
+    lower.findIndex(h => h.includes('editor_name') || h.includes('editor') || h.includes('user'));
+
+  // numeric column: prefer edit_count / edits / count, but NEVER columns with 'id'
+  const numericPrefs = [
+    (h) => h === 'edit_count',
+    (h) => h === 'edits',
+    (h) => h.endsWith('_count') || h === 'count' || h.includes('edits')
+  ];
+  let editsIdx = -1;
+  for (const test of numericPrefs) {
+    const i = lower.findIndex(h => test(h) && !h.includes('id'));
+    if (i !== -1) { editsIdx = i; break; }
+  }
+  // fallbacks
+  if (nameIdx === -1) nameIdx = 0;
+  if (editsIdx === -1) {
+    // pick first numeric-looking column that isn't name or an *_id
+    editsIdx = raw.findIndex((h, i) => i !== nameIdx && !lower[i].includes('id'));
+    if (editsIdx === -1) editsIdx = Math.min(1, raw.length - 1);
+  }
+
+  // optional: detect rank if present
+  const rankIdx = lower.indexOf('rank');
+
+  return { nameIdx, editsIdx, rankIdx, headersRaw: raw };
+}
+
+
+
+    function formatNumber(n) {
+      const x = Number(n);
+      if (!Number.isFinite(x)) return n;
+      return x.toLocaleString(undefined);
+    }
+
+    function setLastUpdatedFromHeaders(headers) {
+      const el = document.getElementById('last-updated');
+      const lastMod = headers.get('Last-Modified') || headers.get('Date');
+      if (lastMod) {
+        const d = new Date(lastMod);
+        el.textContent = 'Last updated: ' + d.toLocaleString();
+      } else {
+        el.textContent = 'Last updated: (not provided by server)';
+      }
+    }
+
+    function renderTable(rows, nameIdx, editsIdx) {
+      const tbody = document.getElementById('tbody');
+      if (!rows.length) {
+        tbody.innerHTML = `<tr><td colspan="3" style="padding:18px;color:#9aa1ac;">No rows found in CSV.</td></tr>`;
+        return;
+      }
+      // map -> sort numeric desc on edits -> top 100
+      const items = rows.map(r => ({
+        name: (r[nameIdx] ?? '').trim(),
+        edits: Number(String(r[editsIdx] ?? '').replace(/[, ]/g, ''))
+      })).filter(x => x.name);
+
+      items.sort((a,b) => (b.edits||0) - (a.edits||0));
+      const top = items.slice(0, 100);
+
+      tbody.innerHTML = top.map((x, i) => `
+        <tr>
+          <td class="rank">${i+1}</td>
+          <td class="name"><a class="link" href="${MB_USER_URL(x.name)}" target="_blank" rel="noopener">${x.name}</a></td>
+          <td class="edits">${formatNumber(x.edits)}</td>
+        </tr>
+      `).join('');
+      // Setup filter
+      const q = document.getElementById('q');
+      q.oninput = () => {
+        const needle = q.value.trim().toLowerCase();
+        Array.from(tbody.rows).forEach(tr => {
+          const name = tr.cells[1]?.innerText.toLowerCase() || '';
+          tr.style.display = needle && !name.includes(needle) ? 'none' : '';
+        });
+      };
+    }
+
+    async function loadCSV() {
+      document.getElementById('csv-src').textContent = CSV_URL;
+      try {
+        const resp = await fetch(CSV_URL, { cache: 'no-store' });
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        setLastUpdatedFromHeaders(resp.headers);
+        const text = await resp.text();
+        const rows = parseCSV(text);
+        if (!rows.length) throw new Error('CSV is empty');
+        const { nameIdx, editsIdx } = detectColumns(rows[0]);
+        renderTable(rows.slice(1), nameIdx, editsIdx);
+      } catch (err) {
+        document.getElementById('tbody').innerHTML =
+          `<tr><td colspan="3" style="padding:18px;color:#ffb4b4;">Failed to load CSV (${String(err)}).<br>
+            Ensure <code>${CSV_URL}</code> exists in this folder or pass <code>?csv=path/to/file.csv</code>.
+           </td></tr>`;
+      }
+    }
+
+    loadCSV();
+  </script>
+</body>
+</html>
