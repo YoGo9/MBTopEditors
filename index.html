@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Top 200 MusicBrainz Editors</title>
+  <title>Top 500 MusicBrainz Editors</title>
   <style>
     :root { color-scheme: light dark; --bg:#0b0b0c; --card:#121316; --fg:#e9eaee; --muted:#9aa1ac; --accent:#6aa3ff; }
     body { margin:0; font:16px/1.45 system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; background:var(--bg); color:var(--fg); }
@@ -32,7 +32,7 @@
   <div class="wrap">
     <header>
       <div>
-        <h1>Top 200 MusicBrainz Editors</h1>
+        <h1>Top 500 MusicBrainz Editors</h1>
         <div class="meta">
           Source: <code id="csv-src">top_editors.csv</code> •
           <span id="last-updated">Last updated: —</span>
@@ -157,14 +157,14 @@
         tbody.innerHTML = `<tr><td colspan="3" style="padding:18px;color:#9aa1ac;">No rows found in CSV.</td></tr>`;
         return;
       }
-      // map -> sort numeric desc on edits -> top 200
+      // map -> sort numeric desc on edits -> top 500
       const items = rows.map(r => ({
         name: (r[nameIdx] ?? '').trim(),
         edits: Number(String(r[editsIdx] ?? '').replace(/[, ]/g, ''))
       })).filter(x => x.name);
 
       items.sort((a,b) => (b.edits||0) - (a.edits||0));
-      const top = items.slice(0, 200);
+      const top = items.slice(0, 500);
 
       tbody.innerHTML = top.map((x, i) => `
         <tr>
