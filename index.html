@@ -5,27 +5,33 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Top 500 MusicBrainz Editors</title>
   <style>
-    :root { color-scheme: light dark; --bg:#0b0b0c; --card:#121316; --fg:#e9eaee; --muted:#9aa1ac; --accent:#6aa3ff; }
-    body { margin:0; font:16px/1.45 system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; background:var(--bg); color:var(--fg); }
-    .wrap { max-width:1000px; margin:32px auto; padding:0 16px; }
+    :root { color-scheme: light dark; --bg:#0b0b0c; --card:#121316; --fg:#e9eaee; --muted:#9aa1ac; --accent:#6aa3ff; --up:#6bdc8b; --down:#ff8a8a; --same:#9aa1ac; --new:#b9c7ff; }
+    body { margin:0; font:16px/1.45 system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif; background:var(--bg); color:var(--fg); }
+    .wrap { max-width:1100px; margin:32px auto; padding:0 16px; }
     header { display:flex; flex-wrap:wrap; align-items:end; gap:12px; justify-content:space-between; }
     h1 { font-size:clamp(22px, 3vw, 32px); margin:0; letter-spacing:.2px; }
-    .meta { color:var(--muted); font-size:14px; }
+    .meta { color:var(--muted); font-size:14px; display:flex; gap:10px; flex-wrap:wrap; }
     .controls { display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin:14px 0 0; }
     input[type="search"] { padding:10px 12px; border-radius:10px; border:1px solid #2a2e37; background:#0f1114; color:var(--fg); outline:none; min-width:240px; }
     .card { background:var(--card); border:1px solid #1d2129; border-radius:16px; box-shadow:0 10px 30px rgb(0 0 0 / 25%); overflow:hidden; margin-top:16px; }
     table { width:100%; border-collapse:collapse; }
-    thead th { text-align:left; font-weight:600; font-size:13px; color:var(--muted); letter-spacing:.3px; padding:14px 14px; border-bottom:1px solid #1d2129; }
+    thead th { text-align:left; font-weight:600; font-size:13px; color:var(--muted); letter-spacing:.3px; padding:14px; border-bottom:1px solid #1d2129; white-space:nowrap; }
     tbody td { padding:14px; border-bottom:1px solid #1a1d24; }
     tbody tr:hover { background:#101218; }
-    .rank { width:70px; color:#cbd3df; font-variant-numeric:tabular-nums; }
-    .edits { font-variant-numeric:tabular-nums; text-align:right; }
+    .rank { width:60px; color:#cbd3df; font-variant-numeric:tabular-nums; }
+    .edits, .delta { font-variant-numeric:tabular-nums; text-align:right; }
     .name { font-weight:600; }
     .footer { color:var(--muted); font-size:13px; margin:12px 2px; }
-    .tag { display:inline-block; padding:2px 8px; border:1px solid #243047; border-radius:999px; font-size:12px; margin-left:6px; color:#b9c7ff; }
     .link { color:var(--accent); text-decoration:none; }
     .link:hover { text-decoration:underline; }
-    .hidden { display:none; }
+    .arrow.up { color: var(--up); }
+    .arrow.down { color: var(--down); }
+    .arrow.same { color: var(--same); }
+    .arrow.new { color: var(--new); }
+    details { margin-top:16px; }
+    summary { cursor:pointer; color:var(--muted); }
+    .legend { color:var(--muted); font-size:13px; margin-left:auto; display:flex; gap:14px; align-items:center; }
+    .legend span { display:inline-flex; align-items:center; gap:4px; }
   </style>
 </head>
 <body>
@@ -34,12 +40,18 @@
       <div>
         <h1>Top 500 MusicBrainz Editors</h1>
         <div class="meta">
-          Source: <code id="csv-src">top_editors.csv</code> •
-          <span id="last-updated">Last updated: —</span>
+          <span>Current: <code id="csv-current">top_editors.csv</code> • <span id="last-updated-current">—</span></span>
+          <span>Compared to: <code id="csv-old">old_top_editors.csv</code> • <span id="last-updated-old">—</span></span>
         </div>
       </div>
       <div class="controls">
         <input id="q" type="search" placeholder="Filter by editor…" aria-label="Filter editors" />
+        <div class="legend">
+          <span><span class="arrow up">▲</span> up</span>
+          <span><span class="arrow down">▼</span> down</span>
+          <span><span class="arrow same">→</span> same</span>
+          <span><span class="arrow new">▲ new</span></span>
+        </div>
       </div>
     </header>
 
@@ -50,131 +62,181 @@
             <th class="rank">#</th>
             <th>Editor</th>
             <th class="edits">Edits</th>
+            <th class="delta">Δ rank</th>
+            <th class="delta">Δ edits</th>
           </tr>
         </thead>
         <tbody id="tbody">
-          <tr><td colspan="3" style="padding:18px;color:#9aa1ac;">Loading…</td></tr>
+          <tr><td colspan="5" style="padding:18px;color:#9aa1ac;">Loading…</td></tr>
         </tbody>
       </table>
     </section>
 
-  
+    <details class="card" id="dropped-wrap">
+      <summary style="padding:14px 16px;">Show dropped editors (present before, not in current top 500)</summary>
+      <div style="padding:0 0 12px;">
+        <table>
+          <thead>
+            <tr>
+              <th class="rank">Prev #</th>
+              <th>Editor</th>
+              <th class="edits">Prev edits</th>
+            </tr>
+          </thead>
+          <tbody id="dropped-body"></tbody>
+        </table>
+      </div>
+    </details>
+
+    <p class="footer">
+      Tip: Override files/dates via query string, e.g.
+      <code>?csv=top_editors.csv&amp;old=old_top_editors.csv&amp;date=2025-11-04&amp;olddate=2025-10-29</code>
+    </p>
   </div>
 
   <script>
-    // === Config ===
-    const urlParam = new URL(location.href).searchParams.get('csv');
-    const CSV_URL = urlParam || 'top_editors.csv'; // default: same folder
-    const CSV_EXPECTED_HEADERS = ['editor','edits']; // case-insensitive; second column must be numeric
+    // ===== Config (CSV filenames + optional config/URL date overrides) =====
+    const params = new URL(location.href).searchParams;
+    const CSV_CURRENT = params.get('csv') || 'top_editors.csv';
+    const CSV_OLD     = params.get('old') || 'old_top_editors.csv';
+    const CONFIG_URL  = params.get('config') || 'dump-meta.json'; // optional JSON
+    const URL_DATE_OVERRIDE    = params.get('date');    // expects YYYY-MM-DD
+    const URL_OLDDATE_OVERRIDE = params.get('olddate'); // expects YYYY-MM-DD
     const MB_USER_URL = (name) => `https://musicbrainz.org/user/${encodeURIComponent(name)}`;
 
-    // Minimal CSV parser (handles quoted fields with commas and quotes)
+    // ===== Utils =====
     function parseCSV(text) {
-      const rows = [];
-      let i = 0, field = '', row = [], inQuotes = false;
-      while (i < text.length) {
-        const c = text[i];
+      const rows = []; let i=0, field='', row=[], inQuotes=false;
+      while (i<text.length) {
+        const c=text[i];
         if (inQuotes) {
-          if (c === '"') {
-            if (text[i+1] === '"') { field += '"'; i++; } // escaped quote
-            else { inQuotes = false; }
-          } else {
-            field += c;
-          }
+          if (c === '"') { if (text[i+1] === '"') { field += '"'; i++; } else { inQuotes=false; } }
+          else field += c;
         } else {
           if (c === '"') inQuotes = true;
-          else if (c === ',') { row.push(field); field = ''; }
-          else if (c === '\n') { row.push(field); rows.push(row); row = []; field = ''; }
-          else if (c === '\r') { /* ignore CR, handle at LF */ }
-          else { field += c; }
+          else if (c === ',') { row.push(field); field=''; }
+          else if (c === '\n') { row.push(field); rows.push(row); row=[]; field=''; }
+          else if (c !== '\r') field += c;
         }
         i++;
       }
-      // push last field/row if file doesn't end with newline
       if (field.length || row.length) { row.push(field); rows.push(row); }
-      // remove empty trailing rows
       return rows.filter(r => r.some(cell => cell.trim() !== ''));
     }
-
-  function detectColumns(headerRow) {
-  const raw = headerRow;
-  const headers = raw.map(h => h.trim());
-  const lower   = headers.map(h => h.toLowerCase());
-
-  // name column: prefer editor_name, then name, then anything with 'editor' or 'user'
-  let nameIdx =
-    lower.indexOf('editor_name') !== -1 ? lower.indexOf('editor_name') :
-    lower.indexOf('name')        !== -1 ? lower.indexOf('name') :
-    lower.findIndex(h => h.includes('editor_name') || h.includes('editor') || h.includes('user'));
-
-  // numeric column: prefer edit_count / edits / count, but NEVER columns with 'id'
-  const numericPrefs = [
-    (h) => h === 'edit_count',
-    (h) => h === 'edits',
-    (h) => h.endsWith('_count') || h === 'count' || h.includes('edits')
-  ];
-  let editsIdx = -1;
-  for (const test of numericPrefs) {
-    const i = lower.findIndex(h => test(h) && !h.includes('id'));
-    if (i !== -1) { editsIdx = i; break; }
-  }
-  // fallbacks
-  if (nameIdx === -1) nameIdx = 0;
-  if (editsIdx === -1) {
-    // pick first numeric-looking column that isn't name or an *_id
-    editsIdx = raw.findIndex((h, i) => i !== nameIdx && !lower[i].includes('id'));
-    if (editsIdx === -1) editsIdx = Math.min(1, raw.length - 1);
-  }
-
-  // optional: detect rank if present
-  const rankIdx = lower.indexOf('rank');
-
-  return { nameIdx, editsIdx, rankIdx, headersRaw: raw };
-}
-
-
-
-    function formatNumber(n) {
-      const x = Number(n);
-      if (!Number.isFinite(x)) return n;
-      return x.toLocaleString(undefined);
-    }
-
-    function setLastUpdatedFromHeaders(headers) {
-      const el = document.getElementById('last-updated');
-      const lastMod = headers.get('Last-Modified') || headers.get('Date');
-      if (lastMod) {
-        const d = new Date(lastMod);
-        el.textContent = 'Last updated: ' + d.toLocaleString();
-      } else {
-        el.textContent = 'Last updated: (not provided by server)';
+    function detectColumns(headerRow) {
+      const raw = headerRow, lower = raw.map(h => h.toLowerCase());
+      const find = (names) => names.reduce((idx,name)=> idx!==-1?idx:lower.indexOf(name), -1);
+      const rankIdx  = find(['rank']);
+      const idIdx    = find(['editor_id','id']);
+      let   nameIdx  = find(['editor_name','editor','name','user']);
+      let   editsIdx = find(['applied_edit_count','edit_count','edits','count']);
+      if (nameIdx === -1) nameIdx = 0;
+      if (editsIdx === -1) {
+        editsIdx = raw.findIndex((h,i)=> i!==nameIdx && !lower[i].includes('id'));
+        if (editsIdx === -1) editsIdx = Math.min(1, raw.length-1);
       }
+      return { rankIdx, idIdx, nameIdx, editsIdx };
+    }
+    function cellNum(v) { const n = Number(String(v ?? '').replace(/[, ]/g,'')); return Number.isFinite(n) ? n : null; }
+    function formatNumber(n) { const x = Number(n); return Number.isFinite(x) ? x.toLocaleString() : n; }
+    function ymd(d) { // format Date -> YYYY-MM-DD (local)
+      const pad = n => String(n).padStart(2,'0');
+      return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
     }
 
-    function renderTable(rows, nameIdx, editsIdx) {
+    // ===== Config file / date overrides =====
+    async function loadConfig(url) {
+      try { const r = await fetch(url, { cache:'no-store' }); if (!r.ok) throw 0; return await r.json(); }
+      catch { return null; }
+    }
+    function normalizeConfigDate(val) {
+      // Accept "YYYY-MM-DD" or {label:"...", iso:"..."}; return a display string
+      if (!val) return null;
+      if (typeof val === 'string') return val.trim();              // e.g. "2025-10-29"
+      if (val.label) return String(val.label);                     // show as-is
+      if (val.iso)   return String(val.iso).split('T')[0];         // iso -> date part
+      return null;
+    }
+    function isYMD(s) { return typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s); }
+    function setStamp(codeElId, dateElId, shownUrl, headers, overrideVal) {
+      document.getElementById(codeElId).textContent = shownUrl;
+      const el = document.getElementById(dateElId);
+      // Priority: URL param -> config -> headers
+      if (isYMD(overrideVal)) { el.textContent = overrideVal; return; }
+      const cfgStr = normalizeConfigDate(overrideVal);
+      if (cfgStr) { el.textContent = cfgStr; return; }
+      const lastMod = headers?.get?.('Last-Modified') || headers?.get?.('Date');
+      el.textContent = lastMod ? ymd(new Date(lastMod)) : '(not provided)';
+    }
+
+    // ===== Data loading & transforms =====
+    async function fetchCSV(url) {
+      const resp = await fetch(url, { cache: 'no-store' });
+      if (!resp.ok) throw new Error(`${url} → HTTP ${resp.status}`);
+      const text = await resp.text();
+      const rows = parseCSV(text);
+      if (!rows.length) throw new Error(`${url} is empty`);
+      return { rows, headers: resp.headers };
+    }
+    function normalizeTable(rows) {
+      const { rankIdx, idIdx, nameIdx, editsIdx } = detectColumns(rows[0]);
+      const body = rows.slice(1);
+      const items = body.map((r, i) => {
+        const id    = idIdx !== -1 ? (cellNum(r[idIdx]) ?? String(r[idIdx]||'').trim()) : null;
+        const name  = (r[nameIdx] ?? '').trim();
+        const edits = cellNum(r[editsIdx]);
+        const rank  = rankIdx !== -1 ? cellNum(r[rankIdx]) : (i+1);
+        return { id: id ?? name, editor_id: id, name, edits: edits ?? 0, rank };
+      }).filter(x => x.name);
+      if (rankIdx === -1) items.sort((a,b)=>(b.edits||0)-(a.edits||0));
+      items.forEach((x,i)=> x.rank = i+1);
+      return items;
+    }
+    function computeTrends(curr, prev) {
+      const prevByKey = new Map(prev.map(x => [x.id, x]));
+      const currByKey = new Map(curr.map(x => [x.id, x]));
+      const annotated = curr.map(x => {
+        const old = prevByKey.get(x.id);
+        if (!old) return { ...x, rank_change:'', edits_change:'', arrow:'▲ new', arrowClass:'new' };
+        const rank_change  = old.rank - x.rank; // + means moved up
+        const edits_change = (x.edits ?? 0) - (old.edits ?? 0);
+        let arrow='→', arrowClass='same';
+        if (rank_change > 0) { arrow='▲'; arrowClass='up'; }
+        else if (rank_change < 0) { arrow='▼'; arrowClass='down'; }
+        return { ...x, rank_change, edits_change, arrow, arrowClass };
+      });
+      const dropped = prev.filter(x => !currByKey.has(x.id)).sort((a,b)=> a.rank - b.rank);
+      return { annotated, dropped };
+    }
+
+    // ===== Rendering =====
+    function renderCurrentTable(items) {
       const tbody = document.getElementById('tbody');
-      if (!rows.length) {
-        tbody.innerHTML = `<tr><td colspan="3" style="padding:18px;color:#9aa1ac;">No rows found in CSV.</td></tr>`;
-        return;
-      }
-      // map -> sort numeric desc on edits -> top 500
-      const items = rows.map(r => ({
-        name: (r[nameIdx] ?? '').trim(),
-        edits: Number(String(r[editsIdx] ?? '').replace(/[, ]/g, ''))
-      })).filter(x => x.name);
-
-      items.sort((a,b) => (b.edits||0) - (a.edits||0));
-      const top = items.slice(0, 500);
-
-      tbody.innerHTML = top.map((x, i) => `
+      if (!items.length) { tbody.innerHTML = `<tr><td colspan="5" style="padding:18px;color:#9aa1ac;">No rows.</td></tr>`; return; }
+      tbody.innerHTML = items.map(x => `
         <tr>
-          <td class="rank">${i+1}</td>
+          <td class="rank">${x.rank}</td>
+          <td class="name"><a class="link" href="${MB_USER_URL(x.name)}" target="_blank" rel="noopener">${x.name}</a></td>
+          <td class="edits">${formatNumber(x.edits)}</td>
+          <td class="delta"><span class="arrow ${x.arrowClass}">${x.arrow}</span> ${x.rank_change === '' ? '' : x.rank_change > 0 ? '+'+x.rank_change : x.rank_change}</td>
+          <td class="delta">${x.edits_change === '' ? '' : (x.edits_change > 0 ? '+' : '') + formatNumber(x.edits_change)}</td>
+        </tr>
+      `).join('');
+    }
+    function renderDroppedTable(dropped) {
+      const tbody = document.getElementById('dropped-body');
+      if (!tbody) return;
+      if (!dropped.length) { tbody.innerHTML = `<tr><td colspan="3" style="padding:14px;color:#9aa1ac;">None dropped 🎉</td></tr>`; return; }
+      tbody.innerHTML = dropped.map(x => `
+        <tr>
+          <td class="rank">${x.rank}</td>
           <td class="name"><a class="link" href="${MB_USER_URL(x.name)}" target="_blank" rel="noopener">${x.name}</a></td>
           <td class="edits">${formatNumber(x.edits)}</td>
         </tr>
       `).join('');
-      // Setup filter
-      const q = document.getElementById('q');
+    }
+    function hookFilter() {
+      const q = document.getElementById('q'), tbody = document.getElementById('tbody');
       q.oninput = () => {
         const needle = q.value.trim().toLowerCase();
         Array.from(tbody.rows).forEach(tr => {
@@ -184,26 +246,37 @@
       };
     }
 
-    async function loadCSV() {
-      document.getElementById('csv-src').textContent = CSV_URL;
+    // ===== Init =====
+    (async function init() {
       try {
-        const resp = await fetch(CSV_URL, { cache: 'no-store' });
-        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-        setLastUpdatedFromHeaders(resp.headers);
-        const text = await resp.text();
-        const rows = parseCSV(text);
-        if (!rows.length) throw new Error('CSV is empty');
-        const { nameIdx, editsIdx } = detectColumns(rows[0]);
-        renderTable(rows.slice(1), nameIdx, editsIdx);
+        // Optional config
+        const cfg = await loadConfig(CONFIG_URL);
+        const cfgCur = cfg?.current ?? null; // may be "YYYY-MM-DD" or object
+        const cfgOld = cfg?.old ?? null;
+
+        // Load CSVs
+        const [curr, prev] = await Promise.all([fetchCSV(CSV_CURRENT), fetchCSV(CSV_OLD)]);
+
+        // Set dates: URL > config > headers (all shown as YYYY-MM-DD)
+        setStamp('csv-current', 'last-updated-current', CSV_CURRENT, curr.headers, URL_DATE_OVERRIDE || cfgCur);
+        setStamp('csv-old',     'last-updated-old',     CSV_OLD,     prev.headers, URL_OLDDATE_OVERRIDE || cfgOld);
+
+        // Build/compare
+        const currItems = normalizeTable(curr.rows).sort((a,b)=>(b.edits||0)-(a.edits||0)).slice(0,500)
+                              .map((x,i)=>({ ...x, rank:i+1 }));
+        const prevItems = normalizeTable(prev.rows);
+        const { annotated, dropped } = computeTrends(currItems, prevItems);
+
+        renderCurrentTable(annotated);
+        renderDroppedTable(dropped);
+        hookFilter();
       } catch (err) {
         document.getElementById('tbody').innerHTML =
-          `<tr><td colspan="3" style="padding:18px;color:#ffb4b4;">Failed to load CSV (${String(err)}).<br>
-            Ensure <code>${CSV_URL}</code> exists in this folder or pass <code>?csv=path/to/file.csv</code>.
-           </td></tr>`;
+          `<tr><td colspan="5" style="padding:18px;color:#ffb4b4;">${String(err)}</td></tr>`;
+        const dropped = document.getElementById('dropped-body');
+        if (dropped) dropped.innerHTML = '';
       }
-    }
-
-    loadCSV();
+    })();
   </script>
 </body>
 </html>
