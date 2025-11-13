@@ -32,6 +32,15 @@
     summary { cursor:pointer; color:var(--muted); }
     .legend { color:var(--muted); font-size:13px; margin-left:auto; display:flex; gap:14px; align-items:center; }
     .legend span { display:inline-flex; align-items:center; gap:4px; }
+    
+    thead th.sortable {
+      cursor: pointer;
+    }
+    thead th.sortable::after {
+      content: ' ⇅';
+      font-size: 11px;
+      opacity: .5;
+    }
   </style>
 </head>
 <body>
@@ -59,11 +68,11 @@
       <table id="table">
         <thead>
           <tr>
-            <th class="rank">#</th>
+            <th class="rank sortable">#</th>
             <th>Editor</th>
-            <th class="edits">Edits</th>
-            <th class="delta">Δ rank</th>
-            <th class="delta">Δ edits</th>
+            <th class="edits sortable">Edits</th>
+            <th class="delta sortable">Δ rank</th>
+            <th class="delta sortable">Δ edits</th> 
           </tr>
         </thead>
         <tbody id="tbody">
@@ -246,6 +255,65 @@
       };
     }
 
+    // General table sorting (including last column)
+    function getSortValue(td) {
+      if (!td) return null;
+      const txt = td.innerText.trim();
+      if (!txt) return null;
+
+      // Try to extract a signed number (handles "+1,234", "-56", etc.)
+      const m = txt.match(/[-+]?\d[\d,]*/);
+      if (m) {
+        const n = Number(m[0].replace(/,/g, ''));
+        if (!Number.isNaN(n)) return n;
+      }
+
+      // Fallback: string comparison
+      return txt.toLowerCase();
+    }
+
+    function hookSorting() {
+      const table = document.getElementById('table');
+      const tbody = document.getElementById('tbody');
+      const headers = table.querySelectorAll('thead th.sortable');
+      let sortState = { idx: null, dir: 1 }; // 1 = asc, -1 = desc
+
+      headers.forEach(th => {
+        th.addEventListener('click', () => {
+          const idx = th.cellIndex;
+          if (sortState.idx === idx) {
+            sortState.dir = -sortState.dir; // toggle direction
+          } else {
+            sortState.idx = idx;
+            sortState.dir = 1;
+          }
+
+          const rows = Array.from(tbody.rows);
+          rows.sort((a, b) => {
+            const va = getSortValue(a.cells[idx]);
+            const vb = getSortValue(b.cells[idx]);
+
+            if (va == null && vb == null) return 0;
+            if (va == null) return 1;
+            if (vb == null) return -1;
+
+            if (typeof va === 'number' && typeof vb === 'number') {
+              return (va - vb) * sortState.dir;
+            }
+            return String(va).localeCompare(String(vb)) * sortState.dir;
+          });
+
+          rows.forEach(tr => tbody.appendChild(tr));
+
+          // Re-apply current filter if needed
+          const q = document.getElementById('q');
+          if (q && q.value) {
+            q.oninput();
+          }
+        });
+      });
+    }
+
     // ===== Init =====
     (async function init() {
       try {
@@ -270,6 +338,7 @@
         renderCurrentTable(annotated);
         renderDroppedTable(dropped);
         hookFilter();
+        hookSorting(); // NEW: enable click-to-sort, including last column
       } catch (err) {
         document.getElementById('tbody').innerHTML =
           `<tr><td colspan="5" style="padding:18px;color:#ffb4b4;">${String(err)}</td></tr>`;
