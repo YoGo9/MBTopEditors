@@ -4,44 +4,216 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Top 500 MusicBrainz Editors</title>
-  <style>
-    :root { color-scheme: light dark; --bg:#0b0b0c; --card:#121316; --fg:#e9eaee; --muted:#9aa1ac; --accent:#6aa3ff; --up:#6bdc8b; --down:#ff8a8a; --same:#9aa1ac; --new:#b9c7ff; }
-    body { margin:0; font:16px/1.45 system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif; background:var(--bg); color:var(--fg); }
-    .wrap { max-width:1100px; margin:32px auto; padding:0 16px; }
-    header { display:flex; flex-wrap:wrap; align-items:end; gap:12px; justify-content:space-between; }
-    h1 { font-size:clamp(22px, 3vw, 32px); margin:0; letter-spacing:.2px; }
-    .meta { color:var(--muted); font-size:14px; display:flex; gap:10px; flex-wrap:wrap; }
-    .controls { display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin:14px 0 0; }
-    input[type="search"] { padding:10px 12px; border-radius:10px; border:1px solid #2a2e37; background:#0f1114; color:var(--fg); outline:none; min-width:240px; }
-    .card { background:var(--card); border:1px solid #1d2129; border-radius:16px; box-shadow:0 10px 30px rgb(0 0 0 / 25%); overflow:hidden; margin-top:16px; }
-    table { width:100%; border-collapse:collapse; }
-    thead th { text-align:left; font-weight:600; font-size:13px; color:var(--muted); letter-spacing:.3px; padding:14px; border-bottom:1px solid #1d2129; white-space:nowrap; }
-    tbody td { padding:14px; border-bottom:1px solid #1a1d24; }
-    tbody tr:hover { background:#101218; }
-    .rank { width:60px; color:#cbd3df; font-variant-numeric:tabular-nums; }
-    .edits, .delta { font-variant-numeric:tabular-nums; text-align:right; }
-    .name { font-weight:600; }
-    .footer { color:var(--muted); font-size:13px; margin:12px 2px; }
-    .link { color:var(--accent); text-decoration:none; }
-    .link:hover { text-decoration:underline; }
-    .arrow.up { color: var(--up); }
-    .arrow.down { color: var(--down); }
-    .arrow.same { color: var(--same); }
-    .arrow.new { color: var(--new); }
-    details { margin-top:16px; }
-    summary { cursor:pointer; color:var(--muted); }
-    .legend { color:var(--muted); font-size:13px; margin-left:auto; display:flex; gap:14px; align-items:center; }
-    .legend span { display:inline-flex; align-items:center; gap:4px; }
-    
-    thead th.sortable {
-      cursor: pointer;
+ <style>
+  :root {
+    color-scheme: light dark;
+    --bg:#0b0b0c;
+    --card:#121316;
+    --fg:#e9eaee;
+    --muted:#9aa1ac;
+    --accent:#6aa3ff;
+    --up:#6bdc8b;
+    --down:#ff8a8a;
+    --same:#9aa1ac;
+    --new:#b9c7ff;
+  }
+
+  body {
+    margin:0;
+    font:16px/1.45 system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
+    background:var(--bg);
+    color:var(--fg);
+  }
+
+  .wrap {
+    max-width:1100px;
+    margin:32px auto;
+    padding:0 16px;
+  }
+
+  header {
+    display:flex;
+    flex-wrap:wrap;
+    align-items:flex-end;
+    gap:12px;
+    justify-content:space-between;
+  }
+
+  h1 {
+    font-size:clamp(22px, 3vw, 32px);
+    margin:0;
+    letter-spacing:.2px;
+  }
+
+  .meta {
+    color:var(--muted);
+    font-size:14px;
+    display:flex;
+    gap:10px;
+    flex-wrap:wrap;
+  }
+
+  .controls {
+    display:flex;
+    gap:8px;
+    flex-wrap:wrap;
+    align-items:center;
+    margin:14px 0 0;
+  }
+
+  input[type="search"] {
+    padding:10px 12px;
+    border-radius:10px;
+    border:1px solid #2a2e37;
+    background:#0f1114;
+    color:var(--fg);
+    outline:none;
+    min-width:240px;
+  }
+
+  .card {
+    background:var(--card);
+    border:1px solid #1d2129;
+    border-radius:16px;
+    box-shadow:0 10px 30px rgb(0 0 0 / 25%);
+    overflow-x:auto;           /* NEW: horizontal scroll on small screens */
+    overflow-y:hidden;
+    margin-top:16px;
+  }
+
+  table {
+    width:100%;
+    border-collapse:collapse;
+    min-width:600px;           /* NEW: avoid columns squishing too much */
+  }
+
+  thead th {
+    text-align:left;
+    font-weight:600;
+    font-size:13px;
+    color:var(--muted);
+    letter-spacing:.3px;
+    padding:14px;
+    border-bottom:1px solid #1d2129;
+    white-space:nowrap;
+  }
+
+  tbody td {
+    padding:14px;
+    border-bottom:1px solid #1a1d24;
+  }
+
+  tbody tr:hover {
+    background:#101218;
+  }
+
+  .rank {
+    width:60px;
+    color:#cbd3df;
+    font-variant-numeric:tabular-nums;
+  }
+
+  .edits, .delta {
+    font-variant-numeric:tabular-nums;
+    text-align:right;
+  }
+
+  .name {
+    font-weight:600;
+  }
+
+  .footer {
+    color:var(--muted);
+    font-size:13px;
+    margin:12px 2px;
+  }
+
+  .link {
+    color:var(--accent);
+    text-decoration:none;
+  }
+
+  .link:hover {
+    text-decoration:underline;
+  }
+
+  .arrow.up   { color: var(--up); }
+  .arrow.down { color: var(--down); }
+  .arrow.same { color: var(--same); }
+  .arrow.new  { color: var(--new); }
+
+  details {
+    margin-top:16px;
+  }
+
+  summary {
+    cursor:pointer;
+    color:var(--muted);
+  }
+
+  .legend {
+    color:var(--muted);
+    font-size:13px;
+    margin-left:auto;
+    display:flex;
+    gap:14px;
+    align-items:center;
+  }
+
+  .legend span {
+    display:inline-flex;
+    align-items:center;
+    gap:4px;
+  }
+
+  /* sortable headers */
+  thead th.sortable {
+    cursor:pointer;
+  }
+  thead th.sortable::after {
+    content:' ⇅';
+    font-size:11px;
+    opacity:.5;
+  }
+
+  /* ===== Mobile tweaks ===== */
+  @media (max-width: 640px) {
+    .wrap {
+      margin:20px auto;
+      padding:0 10px;
     }
-    thead th.sortable::after {
-      content: ' ⇅';
-      font-size: 11px;
-      opacity: .5;
+
+    header {
+      flex-direction:column;
+      align-items:flex-start;
+      gap:6px;
     }
-  </style>
+
+    .controls {
+      width:100%;
+      margin-top:8px;
+    }
+
+    input[type="search"] {
+      flex:1;
+      min-width:0;
+      width:100%;
+    }
+
+    .legend {
+      font-size:12px;
+      margin-left:0;
+      gap:10px;
+    }
+
+    thead th,
+    tbody td {
+      padding:10px 8px;
+      font-size:13px;
+    }
+  }
+</style>
+
 </head>
 <body>
   <div class="wrap">
