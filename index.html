@@ -427,22 +427,27 @@
       };
     }
 
-    // General table sorting (including last column)
+      // General table sorting (including last column)
     function getSortValue(td) {
       if (!td) return null;
       const txt = td.innerText.trim();
       if (!txt) return null;
 
-      // Try to extract a signed number (handles "+1,234", "-56", etc.)
-      const m = txt.match(/[-+]?\d[\d,]*/);
-      if (m) {
-        const n = Number(m[0].replace(/,/g, ''));
-        if (!Number.isNaN(n)) return n;
-      }
+      // Try to extract a signed number 
+	  
+    const m = txt.match(/[-+]?\d[\d.,\s]*/);   
+    if (m) {
+     // strip all grouping characters, keep only digits and sign
+     const normalized = m[0].replace(/[^0-9-]/g, '');
+    const n = Number.parseInt(normalized, 10);
+    if (!Number.isNaN(n)) return n;
+    }
+
 
       // Fallback: string comparison
       return txt.toLowerCase();
     }
+
 
     function hookSorting() {
       const table = document.getElementById('table');
