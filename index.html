@@ -76,7 +76,7 @@
     border:1px solid #1d2129;
     border-radius:16px;
     box-shadow:0 10px 30px rgb(0 0 0 / 25%);
-    overflow-x:auto;           /* NEW: horizontal scroll on small screens */
+    overflow-x:auto;
     overflow-y:hidden;
     margin-top:16px;
   }
@@ -84,7 +84,7 @@
   table {
     width:100%;
     border-collapse:collapse;
-    min-width:600px;           /* NEW: avoid columns squishing too much */
+    min-width:600px;
   }
 
   thead th {
@@ -166,7 +166,6 @@
     gap:4px;
   }
 
-  /* sortable headers */
   thead th.sortable {
     cursor:pointer;
   }
@@ -176,7 +175,6 @@
     opacity:.5;
   }
 
-  /* ===== Mobile tweaks ===== */
   @media (max-width: 640px) {
     .wrap {
       margin:20px auto;
@@ -221,8 +219,8 @@
       <div>
         <h1>Top 500 MusicBrainz Editors</h1>
         <div class="meta">
-          <span>Current: <code id="csv-current">top_editors.csv</code> • <span id="last-updated-current">—</span></span>
-          <span>Compared to: <code id="csv-old">old_top_editors.csv</code> • <span id="last-updated-old">—</span></span>
+          <span>Current: <code id="csv-current">top_editors.json</code> • <span id="last-updated-current">—</span></span>
+          <span>Compared to: <code id="csv-old">old_top_editors.json</code> • <span id="last-updated-old">—</span></span>
         </div>
       </div>
       <div class="controls">
@@ -271,56 +269,23 @@
 
     <p class="footer">
       Tip: Override files/dates via query string, e.g.
-      <code>?csv=top_editors.csv&amp;old=old_top_editors.csv&amp;date=2025-11-04&amp;olddate=2025-10-29</code>
+      <code>?json=top_editors.json&amp;old=old_top_editors.json&amp;date=2025-11-04&amp;olddate=2025-10-29</code>
     </p>
   </div>
 
   <script>
-    // ===== Config (CSV filenames + optional config/URL date overrides) =====
+    // ===== Config =====
     const params = new URL(location.href).searchParams;
-    const CSV_CURRENT = params.get('csv') || 'top_editors.csv';
-    const CSV_OLD     = params.get('old') || 'old_top_editors.csv';
-    const CONFIG_URL  = params.get('config') || 'dump-meta.json'; // optional JSON
-    const URL_DATE_OVERRIDE    = params.get('date');    // expects YYYY-MM-DD
-    const URL_OLDDATE_OVERRIDE = params.get('olddate'); // expects YYYY-MM-DD
+    const JSON_CURRENT = params.get('json') || 'top_editors.json';
+    const JSON_OLD     = params.get('old')  || 'old_top_editors.json';
+    const CONFIG_URL   = params.get('config') || 'dump-meta.json';
+    const URL_DATE_OVERRIDE    = params.get('date');
+    const URL_OLDDATE_OVERRIDE = params.get('olddate');
     const MB_USER_URL = (name) => `https://musicbrainz.org/user/${encodeURIComponent(name)}`;
 
     // ===== Utils =====
-    function parseCSV(text) {
-      const rows = []; let i=0, field='', row=[], inQuotes=false;
-      while (i<text.length) {
-        const c=text[i];
-        if (inQuotes) {
-          if (c === '"') { if (text[i+1] === '"') { field += '"'; i++; } else { inQuotes=false; } }
-          else field += c;
-        } else {
-          if (c === '"') inQuotes = true;
-          else if (c === ',') { row.push(field); field=''; }
-          else if (c === '\n') { row.push(field); rows.push(row); row=[]; field=''; }
-          else if (c !== '\r') field += c;
-        }
-        i++;
-      }
-      if (field.length || row.length) { row.push(field); rows.push(row); }
-      return rows.filter(r => r.some(cell => cell.trim() !== ''));
-    }
-    function detectColumns(headerRow) {
-      const raw = headerRow, lower = raw.map(h => h.toLowerCase());
-      const find = (names) => names.reduce((idx,name)=> idx!==-1?idx:lower.indexOf(name), -1);
-      const rankIdx  = find(['rank']);
-      const idIdx    = find(['editor_id','id']);
-      let   nameIdx  = find(['editor_name','editor','name','user']);
-      let   editsIdx = find(['applied_edit_count','edit_count','edits','count']);
-      if (nameIdx === -1) nameIdx = 0;
-      if (editsIdx === -1) {
-        editsIdx = raw.findIndex((h,i)=> i!==nameIdx && !lower[i].includes('id'));
-        if (editsIdx === -1) editsIdx = Math.min(1, raw.length-1);
-      }
-      return { rankIdx, idIdx, nameIdx, editsIdx };
-    }
-    function cellNum(v) { const n = Number(String(v ?? '').replace(/[, ]/g,'')); return Number.isFinite(n) ? n : null; }
     function formatNumber(n) { const x = Number(n); return Number.isFinite(x) ? x.toLocaleString() : n; }
-    function ymd(d) { // format Date -> YYYY-MM-DD (local)
+    function ymd(d) {
       const pad = n => String(n).padStart(2,'0');
       return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
     }
@@ -331,18 +296,16 @@
       catch { return null; }
     }
     function normalizeConfigDate(val) {
-      // Accept "YYYY-MM-DD" or {label:"...", iso:"..."}; return a display string
       if (!val) return null;
-      if (typeof val === 'string') return val.trim();              // e.g. "2025-10-29"
-      if (val.label) return String(val.label);                     // show as-is
-      if (val.iso)   return String(val.iso).split('T')[0];         // iso -> date part
+      if (typeof val === 'string') return val.trim();
+      if (val.label) return String(val.label);
+      if (val.iso)   return String(val.iso).split('T')[0];
       return null;
     }
     function isYMD(s) { return typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s); }
     function setStamp(codeElId, dateElId, shownUrl, headers, overrideVal) {
       document.getElementById(codeElId).textContent = shownUrl;
       const el = document.getElementById(dateElId);
-      // Priority: URL param -> config -> headers
       if (isYMD(overrideVal)) { el.textContent = overrideVal; return; }
       const cfgStr = normalizeConfigDate(overrideVal);
       if (cfgStr) { el.textContent = cfgStr; return; }
@@ -350,36 +313,34 @@
       el.textContent = lastMod ? ymd(new Date(lastMod)) : '(not provided)';
     }
 
-    // ===== Data loading & transforms =====
-    async function fetchCSV(url) {
+    // ===== Data loading =====
+    async function fetchJSON(url) {
       const resp = await fetch(url, { cache: 'no-store' });
       if (!resp.ok) throw new Error(`${url} → HTTP ${resp.status}`);
-      const text = await resp.text();
-      const rows = parseCSV(text);
-      if (!rows.length) throw new Error(`${url} is empty`);
-      return { rows, headers: resp.headers };
+      const data = await resp.json();
+      if (!Array.isArray(data) || !data.length) throw new Error(`${url} is empty or not an array`);
+      return { data, headers: resp.headers };
     }
-    function normalizeTable(rows) {
-      const { rankIdx, idIdx, nameIdx, editsIdx } = detectColumns(rows[0]);
-      const body = rows.slice(1);
-      const items = body.map((r, i) => {
-        const id    = idIdx !== -1 ? (cellNum(r[idIdx]) ?? String(r[idIdx]||'').trim()) : null;
-        const name  = (r[nameIdx] ?? '').trim();
-        const edits = cellNum(r[editsIdx]);
-        const rank  = rankIdx !== -1 ? cellNum(r[rankIdx]) : (i+1);
-        return { id: id ?? name, editor_id: id, name, edits: edits ?? 0, rank };
-      }).filter(x => x.name);
-      if (rankIdx === -1) items.sort((a,b)=>(b.edits||0)-(a.edits||0));
-      items.forEach((x,i)=> x.rank = i+1);
-      return items;
+
+    // JSON rows already have named keys: rank, editor_id, editor_name, applied_edit_count
+    function normalizeTable(data) {
+      return data.map((r, i) => ({
+        id:        r.editor_id ?? r.editor_name,
+        editor_id: r.editor_id ?? null,
+        name:      r.editor_name ?? '',
+        edits:     r.applied_edit_count ?? 0,
+        rank:      r.rank ?? (i + 1),
+      })).filter(x => x.name);
     }
+
+    // ===== Trends =====
     function computeTrends(curr, prev) {
       const prevByKey = new Map(prev.map(x => [x.id, x]));
       const currByKey = new Map(curr.map(x => [x.id, x]));
       const annotated = curr.map(x => {
         const old = prevByKey.get(x.id);
         if (!old) return { ...x, rank_change:'', edits_change:'', arrow:'▲ new', arrowClass:'new' };
-        const rank_change  = old.rank - x.rank; // + means moved up
+        const rank_change  = old.rank - x.rank;
         const edits_change = (x.edits ?? 0) - (old.edits ?? 0);
         let arrow='→', arrowClass='same';
         if (rank_change > 0) { arrow='▲'; arrowClass='up'; }
@@ -427,66 +388,45 @@
       };
     }
 
-      // General table sorting (including last column)
     function getSortValue(td) {
       if (!td) return null;
       const txt = td.innerText.trim();
       if (!txt) return null;
-
-      // Try to extract a signed number 
-	  
-    const m = txt.match(/[-+]?\d[\d.,\s]*/);   
-    if (m) {
-     // strip all grouping characters, keep only digits and sign
-     const normalized = m[0].replace(/[^0-9-]/g, '');
-    const n = Number.parseInt(normalized, 10);
-    if (!Number.isNaN(n)) return n;
-    }
-
-
-      // Fallback: string comparison
+      const m = txt.match(/[-+]?\d[\d.,\s]*/);
+      if (m) {
+        const normalized = m[0].replace(/[^0-9-]/g, '');
+        const n = Number.parseInt(normalized, 10);
+        if (!Number.isNaN(n)) return n;
+      }
       return txt.toLowerCase();
     }
-
 
     function hookSorting() {
       const table = document.getElementById('table');
       const tbody = document.getElementById('tbody');
       const headers = table.querySelectorAll('thead th.sortable');
-      let sortState = { idx: null, dir: 1 }; // 1 = asc, -1 = desc
+      let sortState = { idx: null, dir: 1 };
 
       headers.forEach(th => {
         th.addEventListener('click', () => {
           const idx = th.cellIndex;
-          if (sortState.idx === idx) {
-            sortState.dir = -sortState.dir; // toggle direction
-          } else {
-            sortState.idx = idx;
-            sortState.dir = 1;
-          }
+          sortState.dir = sortState.idx === idx ? -sortState.dir : 1;
+          sortState.idx = idx;
 
           const rows = Array.from(tbody.rows);
           rows.sort((a, b) => {
             const va = getSortValue(a.cells[idx]);
             const vb = getSortValue(b.cells[idx]);
-
             if (va == null && vb == null) return 0;
             if (va == null) return 1;
             if (vb == null) return -1;
-
-            if (typeof va === 'number' && typeof vb === 'number') {
-              return (va - vb) * sortState.dir;
-            }
+            if (typeof va === 'number' && typeof vb === 'number') return (va - vb) * sortState.dir;
             return String(va).localeCompare(String(vb)) * sortState.dir;
           });
 
           rows.forEach(tr => tbody.appendChild(tr));
-
-          // Re-apply current filter if needed
           const q = document.getElementById('q');
-          if (q && q.value) {
-            q.oninput();
-          }
+          if (q && q.value) q.oninput();
         });
       });
     }
@@ -494,28 +434,24 @@
     // ===== Init =====
     (async function init() {
       try {
-        // Optional config
         const cfg = await loadConfig(CONFIG_URL);
-        const cfgCur = cfg?.current ?? null; // may be "YYYY-MM-DD" or object
+        const cfgCur = cfg?.current ?? null;
         const cfgOld = cfg?.old ?? null;
 
-        // Load CSVs
-        const [curr, prev] = await Promise.all([fetchCSV(CSV_CURRENT), fetchCSV(CSV_OLD)]);
+        const [curr, prev] = await Promise.all([fetchJSON(JSON_CURRENT), fetchJSON(JSON_OLD)]);
 
-        // Set dates: URL > config > headers (all shown as YYYY-MM-DD)
-        setStamp('csv-current', 'last-updated-current', CSV_CURRENT, curr.headers, URL_DATE_OVERRIDE || cfgCur);
-        setStamp('csv-old',     'last-updated-old',     CSV_OLD,     prev.headers, URL_OLDDATE_OVERRIDE || cfgOld);
+        setStamp('csv-current', 'last-updated-current', JSON_CURRENT, curr.headers, URL_DATE_OVERRIDE || cfgCur);
+        setStamp('csv-old',     'last-updated-old',     JSON_OLD,     prev.headers, URL_OLDDATE_OVERRIDE || cfgOld);
 
-        // Build/compare
-        const currItems = normalizeTable(curr.rows).sort((a,b)=>(b.edits||0)-(a.edits||0)).slice(0,500)
+        const currItems = normalizeTable(curr.data).sort((a,b)=>(b.edits||0)-(a.edits||0)).slice(0,500)
                               .map((x,i)=>({ ...x, rank:i+1 }));
-        const prevItems = normalizeTable(prev.rows);
+        const prevItems = normalizeTable(prev.data);
         const { annotated, dropped } = computeTrends(currItems, prevItems);
 
         renderCurrentTable(annotated);
         renderDroppedTable(dropped);
         hookFilter();
-        hookSorting(); // NEW: enable click-to-sort, including last column
+        hookSorting();
       } catch (err) {
         document.getElementById('tbody').innerHTML =
           `<tr><td colspan="5" style="padding:18px;color:#ffb4b4;">${String(err)}</td></tr>`;
