@@ -1,32 +1,127 @@
 #!/usr/bin/env python3
 r"""
-Reads MusicBrainz dump files and produces top_editors.csv (top 500 by
-total APPLIED edits).
+Downloads the two MusicBrainz dump files needed to produce a dated
+top-editors JSON snapshot, updates manifest.json, then cleans up.
 
-Usage:
-    python mb_top_editors_overall.py <folder>
+Run it in the folder where you want the download to happen:
+    cd /path/to/your/folder
+    python checkmbeditors.py
 
-<folder> should contain either:
-  - Extracted dumps in:
-        <folder>/mbdump-editor/mbdump/editor_sanitised   (or .../editor)
-        <folder>/mbdump-edit/mbdump/edit
-    OR
-  - The compressed dump files:
-        <folder>/mbdump-editor.tar.bz2
-        <folder>/mbdump-edit.tar.bz2
+You will be prompted to paste the dump URL, e.g.:
+    https://data.metabrainz.org/pub/musicbrainz/data/fullexport/20260411-002149/
 
-If the extracted files are missing, this script will automatically extract
-ONLY the needed files from the .tar.bz2 archives.
+Output files (in the same folder):
+    YYYY-MM-DD.json   — snapshot for today
+    manifest.json     — updated list of all snapshots
 """
 
 import os
 import sys
-import glob
+import json
+import shutil
 import tarfile
+import urllib.request
 from collections import defaultdict
+from datetime import date
 
 APPLIED_STATUS_CODE = 2  # MusicBrainz STATUS_APPLIED
+NEEDED_TARBALLS = ["mbdump-editor.tar.bz2", "mbdump-edit.tar.bz2"]
 
+
+# ---------------------------------------------------------------------------
+# Download
+# ---------------------------------------------------------------------------
+
+def download_file(url: str, dest: str):
+    print(f"  Downloading {os.path.basename(dest)} ...", flush=True)
+    req = urllib.request.Request(url, headers={"User-Agent": "mb-top-editors-script/1.0"})
+    with urllib.request.urlopen(req) as resp:
+        total = resp.headers.get("Content-Length")
+        total = int(total) if total else None
+        downloaded = 0
+        chunk = 1024 * 1024  # 1 MB
+        with open(dest, "wb") as f:
+            while True:
+                block = resp.read(chunk)
+                if not block:
+                    break
+                f.write(block)
+                downloaded += len(block)
+                if total:
+                    pct = downloaded / total * 100
+                    mb = downloaded / 1024 / 1024
+                    print(f"\r    {mb:.0f} MB / {total/1024/1024:.0f} MB  ({pct:.1f}%)",
+                          end="", flush=True)
+                else:
+                    print(f"\r    {downloaded/1024/1024:.0f} MB downloaded",
+                          end="", flush=True)
+        print()
+
+
+def download_dumps(base_url: str, folder: str) -> list[str]:
+    if not base_url.endswith("/"):
+        base_url += "/"
+    downloaded = []
+    for name in NEEDED_TARBALLS:
+        dest = os.path.join(folder, name)
+        if os.path.isfile(dest):
+            print(f"  Already exists, skipping: {name}")
+        else:
+            download_file(base_url + name, dest)
+        downloaded.append(dest)
+    return downloaded
+
+
+# ---------------------------------------------------------------------------
+# Extract
+# ---------------------------------------------------------------------------
+
+def extract_member(tar_path: str, wanted: list[str], target_root: str):
+    print(f"  Extracting from {os.path.basename(tar_path)} ...", flush=True)
+    os.makedirs(target_root, exist_ok=True)
+    with tarfile.open(tar_path, "r:bz2") as tf:
+        members_by_name = {m.name: m for m in tf.getmembers()}
+        for name in wanted:
+            m = members_by_name.get(name)
+            if m is None:
+                for cand_name, cand in members_by_name.items():
+                    if cand_name.endswith(name):
+                        m = cand
+                        break
+            if m is None:
+                print(f"  ! Warning: {name} not found in archive")
+                continue
+            print(f"    - {m.name}")
+            tf.extract(m, path=target_root)
+
+
+def extract_all(folder: str) -> tuple[str, str]:
+    editor_tar  = os.path.join(folder, "mbdump-editor.tar.bz2")
+    edit_tar    = os.path.join(folder, "mbdump-edit.tar.bz2")
+    editor_root = os.path.join(folder, "mbdump-editor")
+    edit_root   = os.path.join(folder, "mbdump-edit")
+
+    extract_member(editor_tar, ["mbdump/editor_sanitized", "mbdump/editor_sanitised", "mbdump/editor"], editor_root)
+    extract_member(edit_tar,   ["mbdump/edit"],                               edit_root)
+
+    editor_dir  = os.path.join(editor_root, "mbdump")
+    editor_file = next(
+        (os.path.join(editor_dir, n) for n in ["editor_sanitized", "editor_sanitised", "editor"]
+         if os.path.isfile(os.path.join(editor_dir, n))), ""
+    )
+    edit_file = os.path.join(edit_root, "mbdump", "edit")
+
+    if not os.path.isfile(editor_file):
+        sys.exit(f"❌ Could not find editor file after extraction in {editor_dir}")
+    if not os.path.isfile(edit_file):
+        sys.exit(f"❌ Could not find edit file after extraction in {edit_root}")
+
+    return editor_file, edit_file
+
+
+# ---------------------------------------------------------------------------
+# Parse
+# ---------------------------------------------------------------------------
 
 def unescape_pg(val: str):
     if val == r"\N":
@@ -78,8 +173,6 @@ def load_editors(editor_file: str) -> dict[int, str]:
     eid_to_name = {}
     with open(editor_file, "r", encoding="utf-8", errors="replace") as f:
         for line in f:
-            if not line or line[0] in ("-", "C"):
-                pass
             parts = line.rstrip("\n").split("\t")
             if len(parts) < 2:
                 continue
@@ -93,19 +186,14 @@ def load_editors(editor_file: str) -> dict[int, str]:
 
 
 def count_applied_edits(edit_file: str) -> dict[int, int]:
-    """
-    edit columns (0-based): 0=id, 1=editor_id, 2=type, 3=status, 4=autoedit,
-                            5=open_time, 6=close_time, 7=expire_time,
-                            8=language, 9=quality
-    """
     counts = defaultdict(int)
     with open(edit_file, "r", encoding="utf-8", errors="replace") as f:
         for line in f:
             parts = line.rstrip("\n").split("\t")
             if len(parts) < 4:
                 continue
-            eid_raw = unescape_pg(parts[1])    # editor_id
-            status_raw = unescape_pg(parts[3]) # status
+            eid_raw    = unescape_pg(parts[1])
+            status_raw = unescape_pg(parts[3])
             if eid_raw is None or status_raw is None:
                 continue
             try:
@@ -116,123 +204,180 @@ def count_applied_edits(edit_file: str) -> dict[int, int]:
     return counts
 
 
-def write_csv(path: str, rows):
-    with open(path, "w", encoding="utf-8", newline="") as f:
-        f.write("rank,editor_id,editor_name,applied_edit_count\n")
-        for i, (eid, name, cnt) in enumerate(rows, start=1):
-            safe = (name or "").replace('"', '""')
-            if any(ch in safe for ch in [",", "\n", "\r", '"']):
-                safe = f'"{safe}"'
-            f.write(f"{i},{eid},{safe},{cnt}\n")
+# ---------------------------------------------------------------------------
+# JSON output
+# ---------------------------------------------------------------------------
+
+def write_snapshot(path: str, rows, snapshot_date: str):
+    data = [
+        {
+            "rank": i,
+            "editor_id": eid,
+            "editor_name": name or "",
+            "applied_edit_count": cnt,
+        }
+        for i, (eid, name, cnt) in enumerate(rows, start=1)
+    ]
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
 
 
-def _find_tar(base_folder: str, prefix: str) -> str | None:
-    """
-    Look for a tar.bz2 file whose name starts with prefix in base_folder.
-    e.g. prefix='mbdump-edit' -> 'mbdump-edit.tar.bz2'
-    """
-    pattern = os.path.join(base_folder, prefix + "*.tar.bz2")
-    matches = sorted(glob.glob(pattern))
-    return matches[0] if matches else None
+# ---------------------------------------------------------------------------
+# Manifest
+# ---------------------------------------------------------------------------
+
+def update_manifest(folder: str, snapshot_date: str, filename: str):
+    manifest_path = os.path.join(folder, "manifest.json")
+    if os.path.isfile(manifest_path):
+        with open(manifest_path, "r", encoding="utf-8") as f:
+            manifest = json.load(f)
+    else:
+        manifest = []
+
+    # Remove any existing entry for this date, then add updated one
+    manifest = [e for e in manifest if e.get("date") != snapshot_date]
+    manifest.append({"date": snapshot_date, "file": filename})
+
+    # Keep sorted newest-first
+    manifest.sort(key=lambda e: e["date"], reverse=True)
+
+    with open(manifest_path, "w", encoding="utf-8") as f:
+        json.dump(manifest, f, ensure_ascii=False, indent=2)
+
+    print(f"  ✅ Updated manifest.json ({len(manifest)} snapshots total)")
+    for entry in manifest:
+        print(f"     {entry['date']} → {entry['file']}")
 
 
-def _extract_members(tar_path: str, target_root: str, wanted: list[str]):
-    """
-    Extract only specific members from tar_path into target_root.
-    Members are specified with the paths used inside the tar archive
-    (e.g. 'mbdump/edit').
-    """
-    print(f"Extracting from {os.path.basename(tar_path)} ...")
-    os.makedirs(target_root, exist_ok=True)
-    with tarfile.open(tar_path, "r:bz2") as tf:
-        members_by_name = {m.name: m for m in tf.getmembers()}
-        for name in wanted:
-            m = members_by_name.get(name)
-            if m is None:
-                # try to be forgiving if there is an extra leading path, etc.
-                for cand_name, cand in members_by_name.items():
-                    if cand_name.endswith(name):
-                        m = cand
-                        break
-            if m is None:
-                print(f"  ! Warning: member {name} not found in {tar_path}")
-                continue
-            print(f"  - {m.name}")
-            tf.extract(m, path=target_root)
+# ---------------------------------------------------------------------------
+# Cleanup
+# ---------------------------------------------------------------------------
+
+def cleanup(folder: str):
+    print("\nCleaning up downloaded and extracted files ...")
+    for name in NEEDED_TARBALLS:
+        p = os.path.join(folder, name)
+        if os.path.isfile(p):
+            os.remove(p)
+            print(f"  Deleted {name}")
+    for d in ["mbdump-editor", "mbdump-edit"]:
+        p = os.path.join(folder, d)
+        if os.path.isdir(p):
+            shutil.rmtree(p)
+            print(f"  Deleted {d}/")
 
 
-def ensure_required_files(folder: str) -> tuple[str, str]:
-    """
-    Make sure editor_file and edit_file exist, extracting from tar.bz2 if needed.
-    Returns (editor_file_path, edit_file_path).
-    """
-    editor_dir = os.path.join(folder, "mbdump-editor", "mbdump")
-    edit_dir   = os.path.join(folder, "mbdump-edit", "mbdump")
+# ---------------------------------------------------------------------------
+# GitHub push
+# ---------------------------------------------------------------------------
 
-    editor_file = os.path.join(editor_dir, "editor_sanitised")
-    if not os.path.isfile(editor_file):
-        editor_file = os.path.join(editor_dir, "editor")
+def push_to_github(folder: str, snapshot_filename: str):
+    import subprocess
 
-    edit_file = os.path.join(edit_dir, "edit")
+    json_file     = os.path.join("json", snapshot_filename)
+    manifest_file = "manifest.json"
 
-    # If missing, try to extract from tarballs.
-    if not os.path.isfile(editor_file):
-        tar_path = _find_tar(folder, "mbdump-editor")
-        if not tar_path:
-            sys.exit(
-                "Missing editor file and mbdump-editor.tar.bz2.\n"
-                "Expected either:\n"
-                f"  {editor_file}\n"
-                "or a tarball like:\n"
-                f"  {os.path.join(folder, 'mbdump-editor.tar.bz2')}"
-            )
-        _extract_members(
-            tar_path,
-            target_root=os.path.join(folder, "mbdump-editor"),
-            wanted=["mbdump/editor_sanitised", "mbdump/editor"],
-        )
-        # Re-resolve after extraction
-        editor_file = os.path.join(editor_dir, "editor_sanitised")
-        if not os.path.isfile(editor_file):
-            editor_file = os.path.join(editor_dir, "editor")
+    def run(cmd, check=True):
+        result = subprocess.run(cmd, cwd=folder, capture_output=True, text=True)
+        if check and result.returncode != 0:
+            print(f"  ❌ git error: {result.stderr.strip() or result.stdout.strip()}")
+            return False
+        return result
 
-    if not os.path.isfile(edit_file):
-        tar_path = _find_tar(folder, "mbdump-edit")
-        if not tar_path:
-            sys.exit(
-                "Missing edit file and mbdump-edit.tar.bz2.\n"
-                "Expected either:\n"
-                f"  {edit_file}\n"
-                "or a tarball like:\n"
-                f"  {os.path.join(folder, 'mbdump-edit.tar.bz2')}"
-            )
-        _extract_members(
-            tar_path,
-            target_root=os.path.join(folder, "mbdump-edit"),
-            wanted=["mbdump/edit", "mbdump/edit_data"],
-        )
-        edit_file = os.path.join(edit_dir, "edit")
+    def is_git_repo():
+        r = run(["git", "rev-parse", "--is-inside-work-tree"], check=False)
+        return r and r.returncode == 0
 
-    if not os.path.isfile(editor_file) or not os.path.isfile(edit_file):
-        sys.exit(
-            "Missing required files even after extraction.\n"
-            f"editor_file: {editor_file}\n"
-            f"edit_file:   {edit_file}"
-        )
+    # --- Init repo if needed ---
+    if not is_git_repo():
+        print("  No git repo detected in this folder.")
+        sys.stdout.write("  GitHub repo URL (e.g. https://github.com/YoGo9/MBTopEditors): ")
+        sys.stdout.flush()
+        remote_url = input().strip()
+        if not remote_url:
+            print("  ❌ No URL provided, skipping push.")
+            return
 
-    return editor_file, edit_file
+        print("  Initialising git repo ...")
+        if not run(["git", "init"]): return
+        if not run(["git", "remote", "add", "origin", remote_url]): return
+
+        # Set default branch to main
+        run(["git", "branch", "-M", "main"], check=False)
+
+        # Fetch remote so we can track it (ignore errors if repo is empty)
+        run(["git", "fetch", "origin"], check=False)
+
+        print(f"  ✅ Git repo initialised with remote: {remote_url}")
+    else:
+        # Check remote is set; if not, ask
+        r = run(["git", "remote", "get-url", "origin"], check=False)
+        if r.returncode != 0:
+            sys.stdout.write("  No remote 'origin' found. GitHub repo URL: ")
+            sys.stdout.flush()
+            remote_url = input().strip()
+            if not remote_url:
+                print("  ❌ No URL provided, skipping push.")
+                return
+            if not run(["git", "remote", "add", "origin", remote_url]): return
+
+    # --- Stage, commit, push ---
+    print("  Running git commands ...")
+    if not run(["git", "add", json_file, manifest_file]): return
+
+    commit_result = run(["git", "commit", "-m", f"snapshot {snapshot_filename.replace('.json', '')}"], check=False)
+    if commit_result.returncode != 0:
+        out = commit_result.stdout.strip() + commit_result.stderr.strip()
+        if "nothing to commit" in out:
+            print("  (Nothing new to commit — already up to date)")
+        else:
+            print(f"  ❌ git commit failed: {out}")
+            return
+
+    if not run(["git", "push", "-u", "origin", "main"]): return
+    print(f"  ✅ Pushed {snapshot_filename} and manifest.json to GitHub.")
 
 
-def main(folder: str):
-    editor_file, edit_file = ensure_required_files(folder)
+# ---------------------------------------------------------------------------
+# Main
+# ---------------------------------------------------------------------------
 
-    print(f"Reading editors: {editor_file}")
+
+def main():
+    folder = os.getcwd()
+    snapshot_date = date.today().isoformat()  # YYYY-MM-DD
+    out_filename  = f"{snapshot_date}.json"
+    out_path      = os.path.join(folder, out_filename)
+
+    sys.stdout.write("MusicBrainz Top Editors\n")
+    sys.stdout.write("=" * 40 + "\n")
+    sys.stdout.write(f"Working folder:  {folder}\n")
+    sys.stdout.write(f"Snapshot date:   {snapshot_date}\n")
+    sys.stdout.write(f"Output file:     {out_filename}\n\n")
+    sys.stdout.write("Paste the dump URL (e.g. https://data.metabrainz.org/pub/musicbrainz/data/fullexport/20260411-002149/):\n> ")
+    sys.stdout.flush()
+
+    base_url = input().strip()
+    if not base_url:
+        sys.exit("❌ No URL provided.")
+
+    # --- Download ---
+    print("\n[1/5] Downloading tarballs ...")
+    download_dumps(base_url, folder)
+
+    # --- Extract ---
+    print("\n[2/5] Extracting needed files ...")
+    editor_file, edit_file = extract_all(folder)
+
+    # --- Process ---
+    print(f"\n[3/5] Processing ...")
+    print(f"  Reading editors from {editor_file}")
     editors = load_editors(editor_file)
-    print(f"Loaded {len(editors):,} editors.")
+    print(f"  Loaded {len(editors):,} editors.")
 
-    print(f"Counting *applied* edits: {edit_file}")
+    print(f"  Counting applied edits from {edit_file}")
     counts = count_applied_edits(edit_file)
-    print(f"Counted applied edits for {len(counts):,} editors.")
+    print(f"  Counted edits for {len(counts):,} editors.")
 
     rows = [
         (eid, editors.get(eid, f"(editor #{eid})"), cnt)
@@ -241,17 +386,32 @@ def main(folder: str):
     rows.sort(key=lambda x: x[2], reverse=True)
     top = rows[:500]
 
-    out_csv = os.path.join(folder, "top_editors.csv")
-    write_csv(out_csv, top)
-    print(f"\n✅ Done. Wrote {len(top)} rows to:\n  {out_csv}")
+    # --- Write snapshot ---
+    print(f"\n[4/5] Writing output ...")
+    write_snapshot(out_path, top, snapshot_date)
+    print(f"  ✅ Wrote {len(top)} rows to {out_filename}")
 
-    print("\nTop 10 preview:")
+    print("\n  Top 10 preview:")
     for i, (eid, name, cnt) in enumerate(top[:10], start=1):
-        print(f"{i:>2}. {name} (id {eid}) — {cnt:,} applied edits")
+        print(f"  {i:>2}. {name} (id {eid}) — {cnt:,} applied edits")
+
+    update_manifest(folder, snapshot_date, out_filename)
+
+    # --- Cleanup ---
+    print("\n[5/5] Cleanup ...")
+    cleanup(folder)
+
+    print(f"\n✅ All done!")
+
+    # --- GitHub push ---
+    sys.stdout.write("\nPush to GitHub? (y/n): ")
+    sys.stdout.flush()
+    answer = input().strip().lower()
+    if answer == "y":
+        push_to_github(folder, out_filename)
+    else:
+        print(f"  Skipped. Remember to push {out_filename} and manifest.json manually.")
 
 
 if __name__ == "__main__":
-    if len(sys.argv) < 2:
-        print("Usage: python mb_top_editors_overall.py <folder>")
-        sys.exit(1)
-    main(os.path.abspath(sys.argv[1]))
+    main()
