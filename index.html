@@ -3,462 +3,1000 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Top 500 MusicBrainz Editors</title>
- <style>
-  :root {
-    color-scheme: light dark;
-    --bg:#0b0b0c;
-    --card:#121316;
-    --fg:#e9eaee;
-    --muted:#9aa1ac;
-    --accent:#6aa3ff;
-    --up:#6bdc8b;
-    --down:#ff8a8a;
-    --same:#9aa1ac;
-    --new:#b9c7ff;
-  }
+  <title>MusicBrainz Top Editors</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@300;400;600&display=swap');
 
-  body {
-    margin:0;
-    font:16px/1.45 system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
-    background:var(--bg);
-    color:var(--fg);
-  }
+    :root {
+      --bg: #080a0f;
+      --surface: #0d1018;
+      --border: #1a1f2e;
+      --border2: #242b3d;
+      --fg: #c8d0e0;
+      --fg2: #6b7694;
+      --accent: #4f8ef7;
+      --accent2: #7eb8f7;
+      --up: #3dd68c;
+      --down: #f76f6f;
+      --new: #b59df7;
+      --same: #4a5270;
+      --mono: 'IBM Plex Mono', monospace;
+      --sans: 'IBM Plex Sans', sans-serif;
+    }
 
-  .wrap {
-    max-width:1100px;
-    margin:32px auto;
-    padding:0 16px;
-  }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-  header {
-    display:flex;
-    flex-wrap:wrap;
-    align-items:flex-end;
-    gap:12px;
-    justify-content:space-between;
-  }
+    body {
+      font-family: var(--sans);
+      background: var(--bg);
+      color: var(--fg);
+      font-size: 14px;
+      min-height: 100vh;
+    }
 
-  h1 {
-    font-size:clamp(22px, 3vw, 32px);
-    margin:0;
-    letter-spacing:.2px;
-  }
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(79,142,247,.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(79,142,247,.03) 1px, transparent 1px);
+      background-size: 40px 40px;
+      pointer-events: none;
+      z-index: 0;
+    }
 
-  .meta {
-    color:var(--muted);
-    font-size:14px;
-    display:flex;
-    gap:10px;
-    flex-wrap:wrap;
-  }
-
-  .controls {
-    display:flex;
-    gap:8px;
-    flex-wrap:wrap;
-    align-items:center;
-    margin:14px 0 0;
-  }
-
-  input[type="search"] {
-    padding:10px 12px;
-    border-radius:10px;
-    border:1px solid #2a2e37;
-    background:#0f1114;
-    color:var(--fg);
-    outline:none;
-    min-width:240px;
-  }
-
-  .card {
-    background:var(--card);
-    border:1px solid #1d2129;
-    border-radius:16px;
-    box-shadow:0 10px 30px rgb(0 0 0 / 25%);
-    overflow-x:auto;
-    overflow-y:hidden;
-    margin-top:16px;
-  }
-
-  table {
-    width:100%;
-    border-collapse:collapse;
-    min-width:600px;
-  }
-
-  thead th {
-    text-align:left;
-    font-weight:600;
-    font-size:13px;
-    color:var(--muted);
-    letter-spacing:.3px;
-    padding:14px;
-    border-bottom:1px solid #1d2129;
-    white-space:nowrap;
-  }
-
-  tbody td {
-    padding:14px;
-    border-bottom:1px solid #1a1d24;
-  }
-
-  tbody tr:hover {
-    background:#101218;
-  }
-
-  .rank {
-    width:60px;
-    color:#cbd3df;
-    font-variant-numeric:tabular-nums;
-  }
-
-  .edits, .delta {
-    font-variant-numeric:tabular-nums;
-    text-align:right;
-  }
-
-  .name {
-    font-weight:600;
-  }
-
-  .footer {
-    color:var(--muted);
-    font-size:13px;
-    margin:12px 2px;
-  }
-
-  .link {
-    color:var(--accent);
-    text-decoration:none;
-  }
-
-  .link:hover {
-    text-decoration:underline;
-  }
-
-  .arrow.up   { color: var(--up); }
-  .arrow.down { color: var(--down); }
-  .arrow.same { color: var(--same); }
-  .arrow.new  { color: var(--new); }
-
-  details {
-    margin-top:16px;
-  }
-
-  summary {
-    cursor:pointer;
-    color:var(--muted);
-  }
-
-  .legend {
-    color:var(--muted);
-    font-size:13px;
-    margin-left:auto;
-    display:flex;
-    gap:14px;
-    align-items:center;
-  }
-
-  .legend span {
-    display:inline-flex;
-    align-items:center;
-    gap:4px;
-  }
-
-  thead th.sortable {
-    cursor:pointer;
-  }
-  thead th.sortable::after {
-    content:' ⇅';
-    font-size:11px;
-    opacity:.5;
-  }
-
-  @media (max-width: 640px) {
     .wrap {
-      margin:20px auto;
-      padding:0 10px;
+      position: relative;
+      z-index: 1;
+      max-width: 1140px;
+      margin: 0 auto;
+      padding: 32px 20px 60px;
     }
 
-    header {
-      flex-direction:column;
-      align-items:flex-start;
-      gap:6px;
+    .header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 20px;
+      flex-wrap: wrap;
+      margin-bottom: 28px;
+      padding-bottom: 24px;
+      border-bottom: 1px solid var(--border);
     }
 
-    .controls {
-      width:100%;
-      margin-top:8px;
+    .title-block h1 {
+      font-family: var(--mono);
+      font-size: clamp(18px, 2.5vw, 26px);
+      font-weight: 600;
+      color: #e8edf8;
+      letter-spacing: -0.5px;
+    }
+
+    .title-block h1 span { color: var(--accent); }
+
+    .subtitle {
+      font-size: 12px;
+      color: var(--fg2);
+      margin-top: 5px;
+      font-family: var(--mono);
+    }
+
+    .snapshot-controls {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .snap-label {
+      font-size: 11px;
+      font-family: var(--mono);
+      color: var(--fg2);
+      text-transform: uppercase;
+      letter-spacing: .5px;
+    }
+
+    .preset-btns {
+      display: flex;
+      gap: 4px;
+      flex-wrap: wrap;
+      margin-top: 8px;
+    }
+
+    .preset-btn {
+      font-family: var(--mono);
+      font-size: 11px;
+      padding: 5px 10px;
+      border-radius: 6px;
+      border: 1px solid var(--border2);
+      background: transparent;
+      color: var(--fg2);
+      cursor: pointer;
+      transition: all .15s;
+      white-space: nowrap;
+    }
+
+    .preset-btn:hover { border-color: var(--accent); color: var(--accent2); }
+    .preset-btn.active { background: rgba(79,142,247,.15); border-color: var(--accent); color: var(--accent2); }
+
+    select {
+      font-family: var(--mono);
+      font-size: 12px;
+      background: var(--surface);
+      border: 1px solid var(--border2);
+      color: var(--fg);
+      padding: 7px 10px;
+      border-radius: 6px;
+      cursor: pointer;
+      outline: none;
+      appearance: none;
+      -webkit-appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%236b7694'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 9px center;
+      padding-right: 26px;
+      min-width: 130px;
+    }
+
+    select:hover { border-color: var(--accent); }
+
+    .tabs {
+      display: flex;
+      gap: 2px;
+      margin-bottom: 16px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .tab {
+      font-family: var(--mono);
+      font-size: 12px;
+      padding: 9px 16px;
+      cursor: pointer;
+      color: var(--fg2);
+      border-bottom: 2px solid transparent;
+      margin-bottom: -1px;
+      transition: color .15s, border-color .15s;
+      white-space: nowrap;
+    }
+
+    .tab:hover { color: var(--fg); }
+    .tab.active { color: var(--accent2); border-color: var(--accent); }
+
+    .toolbar {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      flex-wrap: wrap;
+      margin-bottom: 14px;
     }
 
     input[type="search"] {
-      flex:1;
-      min-width:0;
-      width:100%;
+      font-family: var(--mono);
+      font-size: 12px;
+      background: var(--surface);
+      border: 1px solid var(--border2);
+      color: var(--fg);
+      padding: 8px 12px;
+      border-radius: 6px;
+      outline: none;
+      min-width: 220px;
     }
+
+    input[type="search"]:focus { border-color: var(--accent); }
+
+    .pill-group { display: flex; gap: 4px; flex-wrap: wrap; }
+
+    .pill {
+      font-family: var(--mono);
+      font-size: 11px;
+      padding: 5px 11px;
+      border-radius: 20px;
+      border: 1px solid var(--border2);
+      background: transparent;
+      color: var(--fg2);
+      cursor: pointer;
+      transition: all .15s;
+    }
+
+    .pill:hover { border-color: var(--accent); color: var(--accent2); }
+    .pill.active { background: var(--accent); border-color: var(--accent); color: #fff; }
 
     .legend {
-      font-size:12px;
-      margin-left:0;
-      gap:10px;
+      margin-left: auto;
+      display: flex;
+      gap: 14px;
+      align-items: center;
+      font-size: 11px;
+      font-family: var(--mono);
+      color: var(--fg2);
+      flex-wrap: wrap;
     }
 
-    thead th,
-    tbody td {
-      padding:10px 8px;
-      font-size:13px;
-    }
-  }
-</style>
+    .legend span { display: inline-flex; align-items: center; gap: 4px; }
 
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      overflow: hidden;
+    }
+
+    .card-scroll { overflow-x: auto; }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 520px;
+    }
+
+    thead th {
+      font-family: var(--mono);
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--fg2);
+      text-transform: uppercase;
+      letter-spacing: .4px;
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--border);
+      white-space: nowrap;
+      text-align: left;
+    }
+
+    thead th.sortable { cursor: pointer; user-select: none; }
+    thead th.sortable:hover { color: var(--fg); }
+    thead th.sort-asc::after  { content: ' ↑'; color: var(--accent); }
+    thead th.sort-desc::after { content: ' ↓'; color: var(--accent); }
+    thead th:not(.sort-asc):not(.sort-desc).sortable::after { content: ' ⇅'; opacity: .3; }
+
+    tbody tr {
+      border-bottom: 1px solid var(--border);
+      transition: background .1s;
+      cursor: pointer;
+    }
+
+    tbody tr:last-child { border-bottom: none; }
+    tbody tr:hover { background: rgba(79,142,247,.05); }
+
+    tbody td { padding: 11px 14px; font-size: 13px; }
+
+    .col-rank { font-family: var(--mono); font-size: 12px; color: var(--fg2); width: 54px; }
+    .col-name { font-weight: 600; }
+    .col-edits, .col-delta { font-family: var(--mono); font-size: 12px; text-align: right; }
+
+    .link { color: var(--accent2); text-decoration: none; }
+    .link:hover { text-decoration: underline; }
+
+    .arrow-up   { color: var(--up); }
+    .arrow-down { color: var(--down); }
+    .arrow-same { color: var(--same); }
+    .arrow-new  { color: var(--new); }
+
+    .delta-positive { color: var(--up); }
+    .delta-negative { color: var(--down); }
+    .delta-zero     { color: var(--same); }
+
+    /* Modal */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,.75);
+      z-index: 100;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+
+    .modal-overlay.open { display: flex; }
+
+    .modal {
+      background: var(--surface);
+      border: 1px solid var(--border2);
+      border-radius: 14px;
+      width: 100%;
+      max-width: 620px;
+      max-height: 85vh;
+      overflow-y: auto;
+      padding: 28px;
+      position: relative;
+    }
+
+    .modal-close {
+      position: absolute;
+      top: 16px; right: 18px;
+      background: none;
+      border: none;
+      color: var(--fg2);
+      font-size: 20px;
+      cursor: pointer;
+    }
+
+    .modal-close:hover { color: var(--fg); }
+
+    .modal-name {
+      font-family: var(--mono);
+      font-size: 18px;
+      font-weight: 600;
+      color: #e8edf8;
+      margin-bottom: 4px;
+    }
+
+    .modal-sub {
+      font-size: 12px;
+      color: var(--fg2);
+      font-family: var(--mono);
+      margin-bottom: 20px;
+    }
+
+    .modal-stats {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+      gap: 12px;
+      margin-bottom: 24px;
+    }
+
+    .stat-box {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px 14px;
+    }
+
+    .stat-box .val {
+      font-family: var(--mono);
+      font-size: 20px;
+      font-weight: 600;
+      color: var(--accent2);
+    }
+
+    .stat-box .lbl {
+      font-size: 11px;
+      color: var(--fg2);
+      margin-top: 3px;
+      font-family: var(--mono);
+      text-transform: uppercase;
+      letter-spacing: .3px;
+    }
+
+    .section-title {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--fg2);
+      text-transform: uppercase;
+      letter-spacing: .4px;
+      margin-bottom: 12px;
+    }
+
+    .chart-wrap { width: 100%; overflow: hidden; margin-bottom: 16px; }
+    .chart-wrap svg { width: 100%; display: block; }
+
+    .history-table { width: 100%; border-collapse: collapse; }
+    .history-table th {
+      font-family: var(--mono);
+      font-size: 10px;
+      color: var(--fg2);
+      text-align: left;
+      padding: 6px 10px;
+      border-bottom: 1px solid var(--border);
+      text-transform: uppercase;
+      letter-spacing: .3px;
+    }
+    .history-table td {
+      font-family: var(--mono);
+      font-size: 12px;
+      padding: 7px 10px;
+      border-bottom: 1px solid var(--border);
+    }
+    .history-table tr:last-child td { border-bottom: none; }
+
+    /* Movers */
+    .movers-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+
+    @media (max-width: 600px) { .movers-grid { grid-template-columns: 1fr; } }
+
+    .movers-section h3 {
+      font-family: var(--mono);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: .4px;
+      color: var(--fg2);
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .movers-section table { min-width: 260px; }
+
+    /* Dropped */
+    .dropped-toggle {
+      margin-top: 16px;
+      font-family: var(--mono);
+      font-size: 12px;
+      color: var(--fg2);
+      cursor: pointer;
+      padding: 10px 14px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--surface);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      user-select: none;
+    }
+
+    .dropped-toggle:hover { color: var(--fg); border-color: var(--border2); }
+    .dropped-toggle .chevron { transition: transform .2s; display: inline-block; }
+    .dropped-toggle.open .chevron { transform: rotate(90deg); }
+
+    #dropped-panel { display: none; margin-top: 8px; }
+
+    .footer {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--fg2);
+      margin-top: 28px;
+      padding-top: 20px;
+      border-top: 1px solid var(--border);
+      line-height: 1.8;
+    }
+
+    .hidden { display: none !important; }
+
+    .status-row td {
+      padding: 32px 14px;
+      color: var(--fg2);
+      font-family: var(--mono);
+      font-size: 12px;
+    }
+
+    .err-row td { color: var(--down); }
+  </style>
 </head>
 <body>
-  <div class="wrap">
-    <header>
-      <div>
-        <h1>Top 500 MusicBrainz Editors</h1>
-        <div class="meta">
-          <span>Current: <code id="csv-current">top_editors.json</code> • <span id="last-updated-current">—</span></span>
-          <span>Compared to: <code id="csv-old">old_top_editors.json</code> • <span id="last-updated-old">—</span></span>
-        </div>
-      </div>
-      <div class="controls">
-        <input id="q" type="search" placeholder="Filter by editor…" aria-label="Filter editors" />
-        <div class="legend">
-          <span><span class="arrow up">▲</span> up</span>
-          <span><span class="arrow down">▼</span> down</span>
-          <span><span class="arrow same">→</span> same</span>
-          <span><span class="arrow new">▲ new</span></span>
-        </div>
-      </div>
-    </header>
+<div class="wrap">
 
-    <section class="card">
-      <table id="table">
-        <thead>
-          <tr>
-            <th class="rank sortable">#</th>
-            <th>Editor</th>
-            <th class="edits sortable">Edits</th>
-            <th class="delta sortable">Δ rank</th>
-            <th class="delta sortable">Δ edits</th> 
-          </tr>
-        </thead>
-        <tbody id="tbody">
-          <tr><td colspan="5" style="padding:18px;color:#9aa1ac;">Loading…</td></tr>
-        </tbody>
-      </table>
-    </section>
-
-    <details class="card" id="dropped-wrap">
-      <summary style="padding:14px 16px;">Show dropped editors (present before, not in current top 500)</summary>
-      <div style="padding:0 0 12px;">
-        <table>
-          <thead>
-            <tr>
-              <th class="rank">Prev #</th>
-              <th>Editor</th>
-              <th class="edits">Prev edits</th>
-            </tr>
-          </thead>
-          <tbody id="dropped-body"></tbody>
-        </table>
+  <div class="header">
+    <div class="title-block">
+      <h1>MusicBrainz <span>Top Editors</span></h1>
+      <div class="subtitle" id="subtitle">Loading snapshots…</div>
+    </div>
+    <div class="snapshot-controls">
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+        <span class="snap-label">Newer</span>
+        <select id="sel-new"></select>
+        <span class="snap-label">vs</span>
+        <select id="sel-old"></select>
       </div>
-    </details>
-
-    <p class="footer">
-      Tip: Override files/dates via query string, e.g.
-      <code>?json=top_editors.json&amp;old=old_top_editors.json&amp;date=2025-11-04&amp;olddate=2025-10-29</code>
-    </p>
+      <div class="preset-btns">
+        <button class="preset-btn active" data-preset="latest-prev" title="Most recent vs second most recent">Latest vs Previous</button>
+        <button class="preset-btn" data-preset="latest-oldest" title="Most recent vs very first snapshot">Latest vs Oldest</button>
+        <button class="preset-btn" data-preset="prev-before" title="Second most recent vs third most recent">Previous vs One Before</button>
+      </div>
+    </div>
   </div>
 
-  <script>
-    // ===== Config =====
-    const params = new URL(location.href).searchParams;
-    const JSON_CURRENT = params.get('json') || 'top_editors.json';
-    const JSON_OLD     = params.get('old')  || 'old_top_editors.json';
-    const CONFIG_URL   = params.get('config') || 'dump-meta.json';
-    const URL_DATE_OVERRIDE    = params.get('date');
-    const URL_OLDDATE_OVERRIDE = params.get('olddate');
-    const MB_USER_URL = (name) => `https://musicbrainz.org/user/${encodeURIComponent(name)}`;
+  <div class="tabs">
+    <div class="tab active" data-tab="table">Rankings</div>
+    <div class="tab" data-tab="movers">Movers</div>
+    <div class="tab" data-tab="new">New entries</div>
+  </div>
 
-    // ===== Utils =====
-    function formatNumber(n) { const x = Number(n); return Number.isFinite(x) ? x.toLocaleString() : n; }
-    function ymd(d) {
-      const pad = n => String(n).padStart(2,'0');
-      return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+  <!-- Rankings tab -->
+  <div id="tab-table">
+    <div class="toolbar">
+      <input id="q" type="search" placeholder="Filter editor…" />
+      <div class="pill-group" id="rank-filter">
+        <button class="pill active" data-top="500">All 500</button>
+        <button class="pill" data-top="100">Top 100</button>
+        <button class="pill" data-top="50">Top 50</button>
+        <button class="pill" data-top="10">Top 10</button>
+      </div>
+      <div class="legend">
+        <span><span class="arrow-up">▲</span> up</span>
+        <span><span class="arrow-down">▼</span> down</span>
+        <span><span class="arrow-same">→</span> same</span>
+        <span><span class="arrow-new">★</span> new</span>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-scroll">
+        <table id="main-table">
+          <thead>
+            <tr>
+              <th class="sortable" data-col="rank">#</th>
+              <th>Editor</th>
+              <th class="col-edits sortable" data-col="edits">Edits</th>
+              <th class="col-delta sortable" data-col="rank_change">Δ Rank</th>
+              <th class="col-delta sortable" data-col="edits_change">Δ Edits</th>
+            </tr>
+          </thead>
+          <tbody id="tbody">
+            <tr class="status-row"><td colspan="5">Loading…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="dropped-toggle" id="dropped-toggle">
+      <span class="chevron">›</span>
+      <span id="dropped-label">Dropped editors</span>
+    </div>
+    <div id="dropped-panel">
+      <div class="card">
+        <div class="card-scroll">
+          <table>
+            <thead><tr>
+              <th>Prev #</th><th>Editor</th><th class="col-edits">Prev edits</th>
+            </tr></thead>
+            <tbody id="dropped-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Movers tab -->
+  <div id="tab-movers" class="hidden">
+    <div class="movers-grid">
+      <div class="card movers-section">
+        <h3>▲ Biggest climbers</h3>
+        <div class="card-scroll">
+          <table><thead><tr><th>Editor</th><th class="col-delta">Rank Δ</th><th class="col-delta">Edits Δ</th></tr></thead>
+          <tbody id="climbers-body"></tbody></table>
+        </div>
+      </div>
+      <div class="card movers-section">
+        <h3>▼ Biggest drops</h3>
+        <div class="card-scroll">
+          <table><thead><tr><th>Editor</th><th class="col-delta">Rank Δ</th><th class="col-delta">Edits Δ</th></tr></thead>
+          <tbody id="droppers-body"></tbody></table>
+        </div>
+      </div>
+      <div class="card movers-section">
+        <h3>+ Most new edits</h3>
+        <div class="card-scroll">
+          <table><thead><tr><th>Editor</th><th class="col-delta">Edits Δ</th><th class="col-delta">Rank</th></tr></thead>
+          <tbody id="gainers-body"></tbody></table>
+        </div>
+      </div>
+      <div class="card movers-section">
+        <h3>★ New entries</h3>
+        <div class="card-scroll">
+          <table><thead><tr><th>Editor</th><th class="col-edits">Edits</th><th class="col-delta">Rank</th></tr></thead>
+          <tbody id="newentries-body"></tbody></table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- New entries tab -->
+  <div id="tab-new" class="hidden">
+    <div class="card">
+      <div class="card-scroll">
+        <table>
+          <thead><tr>
+            <th class="sortable" data-col="rank">#</th>
+            <th>Editor</th>
+            <th class="col-edits sortable" data-col="edits">Edits</th>
+          </tr></thead>
+          <tbody id="new-body"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <p class="footer">
+    Click any row to see an editor's full history across all snapshots.<br>
+    Workflow: run checkmbeditors.py → push YYYY-MM-DD.json + manifest.json to GitHub.
+  </p>
+</div>
+
+<!-- Editor modal -->
+<div class="modal-overlay" id="modal-overlay">
+  <div class="modal">
+    <button class="modal-close" id="modal-close">✕</button>
+    <div class="modal-name" id="modal-name"></div>
+    <div class="modal-sub" id="modal-sub"></div>
+    <div class="modal-stats" id="modal-stats"></div>
+    <div class="section-title">Edit count history</div>
+    <div class="chart-wrap" id="chart-wrap"></div>
+    <table class="history-table">
+      <thead><tr><th>Date</th><th>Rank</th><th>Edits</th><th>Δ Edits</th></tr></thead>
+      <tbody id="modal-history"></tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+const MANIFEST_URL = 'manifest.json';
+const MB_URL = n => `https://musicbrainz.org/user/${encodeURIComponent(n)}`;
+const fmt    = n => Number.isFinite(+n) ? (+n).toLocaleString() : String(n ?? '');
+const fmtD   = n => (n == null || n === '') ? '' : (n > 0 ? '+' : '') + fmt(n);
+
+let snapshots   = [];
+let cache       = {};
+let currItems   = [];
+let droppedItems = [];
+let sortState   = { col: 'rank', dir: 1 };
+let topFilter   = 500;
+
+async function fetchJSON(url) {
+  const r = await fetch(url, { cache: 'no-store' });
+  if (!r.ok) throw new Error(`${url} → HTTP ${r.status}`);
+  return r.json();
+}
+
+async function loadSnapshot(entry) {
+  if (cache[entry.file]) return cache[entry.file];
+  const data = await fetchJSON(entry.file);
+  cache[entry.file] = data;
+  return data;
+}
+
+function normalize(data) {
+  return data.map((r, i) => ({
+    id:        r.editor_id ?? r.editor_name,
+    editor_id: r.editor_id ?? null,
+    name:      r.editor_name ?? '',
+    edits:     r.applied_edit_count ?? 0,
+    rank:      r.rank ?? (i + 1),
+  })).filter(x => x.name);
+}
+
+function computeTrends(curr, prev) {
+  const prevMap = new Map(prev.map(x => [x.id, x]));
+  const currMap = new Map(curr.map(x => [x.id, x]));
+  const annotated = curr.map(x => {
+    const old = prevMap.get(x.id);
+    if (!old) return { ...x, rank_change: null, edits_change: null, isNew: true };
+    return { ...x, rank_change: old.rank - x.rank, edits_change: x.edits - old.edits, isNew: false };
+  });
+  const dropped = prev.filter(x => !currMap.has(x.id)).sort((a, b) => a.rank - b.rank);
+  return { annotated, dropped };
+}
+
+function renderTable() {
+  const tbody  = document.getElementById('tbody');
+  const q      = document.getElementById('q').value.trim().toLowerCase();
+  let rows     = currItems.filter(x => x.rank <= topFilter);
+  if (q) rows  = rows.filter(x => x.name.toLowerCase().includes(q));
+
+  rows = [...rows].sort((a, b) => {
+    let va = a[sortState.col], vb = b[sortState.col];
+    const inf = sortState.dir > 0 ? Infinity : -Infinity;
+    if (va == null) va = inf;
+    if (vb == null) vb = inf;
+    return (va - vb) * sortState.dir;
+  });
+
+  if (!rows.length) {
+    tbody.innerHTML = `<tr class="status-row"><td colspan="5">No results.</td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = rows.map(x => {
+    let rankCell, editsCell;
+    if (x.isNew) {
+      rankCell  = `<span class="arrow-new">★ new</span>`;
+      editsCell = '';
+    } else {
+      const rc = x.rank_change;
+      const arrow = rc > 0 ? `<span class="arrow-up">▲</span>` : rc < 0 ? `<span class="arrow-down">▼</span>` : `<span class="arrow-same">→</span>`;
+      const rcCls = rc > 0 ? 'delta-positive' : rc < 0 ? 'delta-negative' : 'delta-zero';
+      const ecCls = x.edits_change > 0 ? 'delta-positive' : x.edits_change < 0 ? 'delta-negative' : 'delta-zero';
+      rankCell  = `${arrow} <span class="${rcCls}">${rc > 0 ? '+'+rc : rc}</span>`;
+      editsCell = `<span class="${ecCls}">${fmtD(x.edits_change)}</span>`;
+    }
+    return `<tr data-id="${x.id}" data-name="${x.name}">
+      <td class="col-rank">${x.rank}</td>
+      <td class="col-name"><a class="link" href="${MB_URL(x.name)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">${x.name}</a></td>
+      <td class="col-edits">${fmt(x.edits)}</td>
+      <td class="col-delta">${rankCell}</td>
+      <td class="col-delta">${editsCell}</td>
+    </tr>`;
+  }).join('');
+
+  tbody.querySelectorAll('tr[data-id]').forEach(tr =>
+    tr.addEventListener('click', () => openModal(tr.dataset.id, tr.dataset.name)));
+}
+
+function renderDropped() {
+  const tbody = document.getElementById('dropped-body');
+  const lbl   = document.getElementById('dropped-label');
+  lbl.textContent = droppedItems.length
+    ? `${droppedItems.length} dropped editor${droppedItems.length !== 1 ? 's' : ''}`
+    : 'No dropped editors';
+  tbody.innerHTML = droppedItems.length
+    ? droppedItems.map(x => `<tr>
+        <td class="col-rank">${x.rank}</td>
+        <td class="col-name"><a class="link" href="${MB_URL(x.name)}" target="_blank" rel="noopener">${x.name}</a></td>
+        <td class="col-edits">${fmt(x.edits)}</td>
+      </tr>`).join('')
+    : `<tr class="status-row"><td colspan="3">None dropped 🎉</td></tr>`;
+}
+
+function moverRows(arr, col1, col2, cls1) {
+  return arr.length
+    ? arr.map(x => `<tr data-id="${x.id}" data-name="${x.name}" style="cursor:pointer">
+        <td class="col-name"><a class="link" href="${MB_URL(x.name)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">${x.name}</a></td>
+        <td class="col-delta ${cls1(x[col1])}">${fmtD(x[col1])}</td>
+        <td class="col-delta">${fmt(x[col2])}</td>
+      </tr>`).join('')
+    : `<tr class="status-row"><td colspan="3">—</td></tr>`;
+}
+
+function renderMovers() {
+  const existing = currItems.filter(x => !x.isNew);
+  const top15    = (arr, key, desc) => [...arr].sort((a,b) => desc ? b[key]-a[key] : a[key]-b[key]).slice(0,15);
+
+  const posNeg = v => v > 0 ? 'delta-positive' : v < 0 ? 'delta-negative' : 'delta-zero';
+
+  document.getElementById('climbers-body').innerHTML =
+    moverRows(top15(existing, 'rank_change', true), 'rank_change', 'edits_change', posNeg);
+
+  document.getElementById('droppers-body').innerHTML =
+    moverRows(top15(existing.filter(x=>x.rank_change<0), 'rank_change', false), 'rank_change', 'edits_change', posNeg);
+
+  document.getElementById('gainers-body').innerHTML =
+    moverRows(top15(existing, 'edits_change', true), 'edits_change', 'rank', posNeg);
+
+  const newOnes = currItems.filter(x => x.isNew).sort((a,b)=>a.rank-b.rank).slice(0,15);
+  document.getElementById('newentries-body').innerHTML = newOnes.length
+    ? newOnes.map(x => `<tr data-id="${x.id}" data-name="${x.name}" style="cursor:pointer">
+        <td class="col-name"><a class="link" href="${MB_URL(x.name)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">${x.name}</a></td>
+        <td class="col-edits">${fmt(x.edits)}</td>
+        <td class="col-delta">${x.rank}</td>
+      </tr>`).join('')
+    : `<tr class="status-row"><td colspan="3">—</td></tr>`;
+
+  ['climbers-body','droppers-body','gainers-body','newentries-body'].forEach(id => {
+    document.getElementById(id).querySelectorAll('tr[data-id]').forEach(tr =>
+      tr.addEventListener('click', () => openModal(tr.dataset.id, tr.dataset.name)));
+  });
+}
+
+function renderNewTab() {
+  const newOnes = currItems.filter(x => x.isNew).sort((a,b)=>a.rank-b.rank);
+  document.getElementById('new-body').innerHTML = newOnes.length
+    ? newOnes.map(x => `<tr data-id="${x.id}" data-name="${x.name}" style="cursor:pointer">
+        <td class="col-rank">${x.rank}</td>
+        <td class="col-name"><a class="link" href="${MB_URL(x.name)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">${x.name}</a></td>
+        <td class="col-edits">${fmt(x.edits)}</td>
+      </tr>`).join('')
+    : `<tr class="status-row"><td colspan="3">No new entries.</td></tr>`;
+  document.getElementById('new-body').querySelectorAll('tr[data-id]').forEach(tr =>
+    tr.addEventListener('click', () => openModal(tr.dataset.id, tr.dataset.name)));
+}
+
+async function openModal(editorId, editorName) {
+  const history = [];
+  for (const snap of snapshots) {
+    let data;
+    try { data = await loadSnapshot(snap); } catch { continue; }
+    const found = normalize(data).find(x => String(x.id) === String(editorId));
+    if (found) history.push({ date: snap.date, rank: found.rank, edits: found.edits });
+  }
+  history.sort((a,b) => a.date.localeCompare(b.date));
+
+  const latest = history[history.length - 1];
+  const first  = history[0];
+
+  document.getElementById('modal-name').textContent = editorName;
+  document.getElementById('modal-sub').innerHTML =
+    `<a class="link" href="${MB_URL(editorName)}" target="_blank" rel="noopener">musicbrainz.org/user/${editorName}</a>` +
+    (editorId ? ` · id ${editorId}` : '');
+
+  const gained = history.length > 1 ? latest.edits - first.edits : null;
+  document.getElementById('modal-stats').innerHTML = [
+    { val: latest ? '#' + latest.rank : '—', lbl: 'Current rank' },
+    { val: latest ? fmt(latest.edits) : '—', lbl: 'Total edits' },
+    { val: history.length, lbl: 'Snapshots' },
+    gained != null ? { val: '+' + fmt(gained), lbl: 'Edits gained' } : null,
+  ].filter(Boolean).map(s =>
+    `<div class="stat-box"><div class="val">${s.val}</div><div class="lbl">${s.lbl}</div></div>`
+  ).join('');
+
+  // Sparkline
+  if (history.length >= 2) {
+    const W=560, H=90, P=12;
+    const vals = history.map(h=>h.edits);
+    const minV = Math.min(...vals), range = Math.max(...vals) - minV || 1;
+    const pts = history.map((h,i) => {
+      const x = P + (i/(history.length-1))*(W-P*2);
+      const y = H - P - ((h.edits-minV)/range)*(H-P*2);
+      return [x,y];
+    });
+    const polyline = pts.map(p=>p.join(',')).join(' ');
+    const area = `${pts[0][0]},${H} ` + pts.map(p=>p.join(',')).join(' ') + ` ${pts[pts.length-1][0]},${H}`;
+    document.getElementById('chart-wrap').innerHTML = `
+      <svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <linearGradient id="cg" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#4f8ef7" stop-opacity=".25"/>
+            <stop offset="100%" stop-color="#4f8ef7" stop-opacity="0"/>
+          </linearGradient>
+        </defs>
+        <polygon points="${area}" fill="url(#cg)"/>
+        <polyline points="${polyline}" fill="none" stroke="#4f8ef7" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+        ${pts.map(p=>`<circle cx="${p[0]}" cy="${p[1]}" r="3.5" fill="#4f8ef7"/>`).join('')}
+      </svg>`;
+  } else {
+    document.getElementById('chart-wrap').innerHTML =
+      `<p style="font-family:var(--mono);font-size:11px;color:var(--fg2);padding:6px 0 14px">Not enough snapshots for a chart yet.</p>`;
+  }
+
+  const rows = [...history].reverse();
+  document.getElementById('modal-history').innerHTML = rows.map((h, i) => {
+    const prev = rows[i+1];
+    const dE = prev ? h.edits - prev.edits : null;
+    const cls = dE == null ? '' : dE > 0 ? 'delta-positive' : dE < 0 ? 'delta-negative' : 'delta-zero';
+    return `<tr>
+      <td>${h.date}</td>
+      <td>#${h.rank}</td>
+      <td>${fmt(h.edits)}</td>
+      <td class="${cls}">${dE != null ? fmtD(dE) : '—'}</td>
+    </tr>`;
+  }).join('');
+
+  document.getElementById('modal-overlay').classList.add('open');
+}
+
+async function loadAndRender() {
+  const selNew   = document.getElementById('sel-new');
+  const selOld   = document.getElementById('sel-old');
+  const newEntry = snapshots.find(s => s.date === selNew.value);
+  const oldEntry = snapshots.find(s => s.date === selOld.value);
+  if (!newEntry || !oldEntry) return;
+
+  const [newData, oldData] = await Promise.all([loadSnapshot(newEntry), loadSnapshot(oldEntry)]);
+  const newNorm = normalize(newData).sort((a,b)=>b.edits-a.edits).slice(0,500).map((x,i)=>({...x,rank:i+1}));
+  const oldNorm = normalize(oldData);
+
+  const { annotated, dropped } = computeTrends(newNorm, oldNorm);
+  currItems     = annotated;
+  droppedItems  = dropped;
+
+  const newCount = annotated.filter(x=>x.isNew).length;
+  document.getElementById('subtitle').textContent =
+    `${newEntry.date}  vs  ${oldEntry.date} · ${newCount} new · ${dropped.length} dropped`;
+
+  renderTable();
+  renderDropped();
+  renderMovers();
+  renderNewTab();
+}
+
+(async function init() {
+  try {
+    const manifest = await fetchJSON(MANIFEST_URL);
+    snapshots = [...manifest].sort((a,b) => b.date.localeCompare(a.date));
+    if (!snapshots.length) throw new Error('manifest.json is empty');
+
+    const selNew = document.getElementById('sel-new');
+    const selOld = document.getElementById('sel-old');
+
+    snapshots.forEach((s, i) => {
+      selNew.add(new Option(s.date, s.date, i===0, i===0));
+      selOld.add(new Option(s.date, s.date, i===1, i===1));
+    });
+
+    if (snapshots.length === 1) {
+      selOld.innerHTML = '';
+      selOld.add(new Option(snapshots[0].date, snapshots[0].date, true, true));
     }
 
-    // ===== Config file / date overrides =====
-    async function loadConfig(url) {
-      try { const r = await fetch(url, { cache:'no-store' }); if (!r.ok) throw 0; return await r.json(); }
-      catch { return null; }
-    }
-    function normalizeConfigDate(val) {
-      if (!val) return null;
-      if (typeof val === 'string') return val.trim();
-      if (val.label) return String(val.label);
-      if (val.iso)   return String(val.iso).split('T')[0];
-      return null;
-    }
-    function isYMD(s) { return typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s); }
-    function setStamp(codeElId, dateElId, shownUrl, headers, overrideVal) {
-      document.getElementById(codeElId).textContent = shownUrl;
-      const el = document.getElementById(dateElId);
-      if (isYMD(overrideVal)) { el.textContent = overrideVal; return; }
-      const cfgStr = normalizeConfigDate(overrideVal);
-      if (cfgStr) { el.textContent = cfgStr; return; }
-      const lastMod = headers?.get?.('Last-Modified') || headers?.get?.('Date');
-      el.textContent = lastMod ? ymd(new Date(lastMod)) : '(not provided)';
-    }
+    selNew.addEventListener('change', loadAndRender);
+    selOld.addEventListener('change', loadAndRender);
 
-    // ===== Data loading =====
-    async function fetchJSON(url) {
-      const resp = await fetch(url, { cache: 'no-store' });
-      if (!resp.ok) throw new Error(`${url} → HTTP ${resp.status}`);
-      const data = await resp.json();
-      if (!Array.isArray(data) || !data.length) throw new Error(`${url} is empty or not an array`);
-      return { data, headers: resp.headers };
-    }
+    await loadAndRender();
 
-    // JSON rows already have named keys: rank, editor_id, editor_name, applied_edit_count
-    function normalizeTable(data) {
-      return data.map((r, i) => ({
-        id:        r.editor_id ?? r.editor_name,
-        editor_id: r.editor_id ?? null,
-        name:      r.editor_name ?? '',
-        edits:     r.applied_edit_count ?? 0,
-        rank:      r.rank ?? (i + 1),
-      })).filter(x => x.name);
-    }
+    // Background-cache all snapshots so modal history is instant
+    for (const snap of snapshots) loadSnapshot(snap).catch(()=>{});
 
-    // ===== Trends =====
-    function computeTrends(curr, prev) {
-      const prevByKey = new Map(prev.map(x => [x.id, x]));
-      const currByKey = new Map(curr.map(x => [x.id, x]));
-      const annotated = curr.map(x => {
-        const old = prevByKey.get(x.id);
-        if (!old) return { ...x, rank_change:'', edits_change:'', arrow:'▲ new', arrowClass:'new' };
-        const rank_change  = old.rank - x.rank;
-        const edits_change = (x.edits ?? 0) - (old.edits ?? 0);
-        let arrow='→', arrowClass='same';
-        if (rank_change > 0) { arrow='▲'; arrowClass='up'; }
-        else if (rank_change < 0) { arrow='▼'; arrowClass='down'; }
-        return { ...x, rank_change, edits_change, arrow, arrowClass };
-      });
-      const dropped = prev.filter(x => !currByKey.has(x.id)).sort((a,b)=> a.rank - b.rank);
-      return { annotated, dropped };
-    }
+  } catch(err) {
+    document.getElementById('tbody').innerHTML =
+      `<tr class="err-row"><td colspan="5">${String(err)}</td></tr>`;
+    document.getElementById('subtitle').textContent = 'Error loading data';
+  }
+})();
 
-    // ===== Rendering =====
-    function renderCurrentTable(items) {
-      const tbody = document.getElementById('tbody');
-      if (!items.length) { tbody.innerHTML = `<tr><td colspan="5" style="padding:18px;color:#9aa1ac;">No rows.</td></tr>`; return; }
-      tbody.innerHTML = items.map(x => `
-        <tr>
-          <td class="rank">${x.rank}</td>
-          <td class="name"><a class="link" href="${MB_USER_URL(x.name)}" target="_blank" rel="noopener">${x.name}</a></td>
-          <td class="edits">${formatNumber(x.edits)}</td>
-          <td class="delta"><span class="arrow ${x.arrowClass}">${x.arrow}</span> ${x.rank_change === '' ? '' : x.rank_change > 0 ? '+'+x.rank_change : x.rank_change}</td>
-          <td class="delta">${x.edits_change === '' ? '' : (x.edits_change > 0 ? '+' : '') + formatNumber(x.edits_change)}</td>
-        </tr>
-      `).join('');
-    }
-    function renderDroppedTable(dropped) {
-      const tbody = document.getElementById('dropped-body');
-      if (!tbody) return;
-      if (!dropped.length) { tbody.innerHTML = `<tr><td colspan="3" style="padding:14px;color:#9aa1ac;">None dropped 🎉</td></tr>`; return; }
-      tbody.innerHTML = dropped.map(x => `
-        <tr>
-          <td class="rank">${x.rank}</td>
-          <td class="name"><a class="link" href="${MB_USER_URL(x.name)}" target="_blank" rel="noopener">${x.name}</a></td>
-          <td class="edits">${formatNumber(x.edits)}</td>
-        </tr>
-      `).join('');
-    }
-    function hookFilter() {
-      const q = document.getElementById('q'), tbody = document.getElementById('tbody');
-      q.oninput = () => {
-        const needle = q.value.trim().toLowerCase();
-        Array.from(tbody.rows).forEach(tr => {
-          const name = tr.cells[1]?.innerText.toLowerCase() || '';
-          tr.style.display = needle && !name.includes(needle) ? 'none' : '';
-        });
-      };
-    }
+// Preset buttons
+function applyPreset(preset) {
+  const selNew = document.getElementById('sel-new');
+  const selOld = document.getElementById('sel-old');
+  const n = snapshots.length;
+  if (n < 1) return;
 
-    function getSortValue(td) {
-      if (!td) return null;
-      const txt = td.innerText.trim();
-      if (!txt) return null;
-      const m = txt.match(/[-+]?\d[\d.,\s]*/);
-      if (m) {
-        const normalized = m[0].replace(/[^0-9-]/g, '');
-        const n = Number.parseInt(normalized, 10);
-        if (!Number.isNaN(n)) return n;
-      }
-      return txt.toLowerCase();
-    }
+  let newDate, oldDate;
+  if (preset === 'latest-prev') {
+    newDate = snapshots[0]?.date;
+    oldDate = snapshots[1]?.date ?? snapshots[0].date;
+  } else if (preset === 'latest-oldest') {
+    newDate = snapshots[0]?.date;
+    oldDate = snapshots[n - 1]?.date;
+  } else if (preset === 'prev-before') {
+    newDate = snapshots[1]?.date ?? snapshots[0].date;
+    oldDate = snapshots[2]?.date ?? snapshots[1]?.date ?? snapshots[0].date;
+  }
 
-    function hookSorting() {
-      const table = document.getElementById('table');
-      const tbody = document.getElementById('tbody');
-      const headers = table.querySelectorAll('thead th.sortable');
-      let sortState = { idx: null, dir: 1 };
+  if (newDate) selNew.value = newDate;
+  if (oldDate) selOld.value = oldDate;
 
-      headers.forEach(th => {
-        th.addEventListener('click', () => {
-          const idx = th.cellIndex;
-          sortState.dir = sortState.idx === idx ? -sortState.dir : 1;
-          sortState.idx = idx;
+  document.querySelectorAll('.preset-btn').forEach(b =>
+    b.classList.toggle('active', b.dataset.preset === preset));
 
-          const rows = Array.from(tbody.rows);
-          rows.sort((a, b) => {
-            const va = getSortValue(a.cells[idx]);
-            const vb = getSortValue(b.cells[idx]);
-            if (va == null && vb == null) return 0;
-            if (va == null) return 1;
-            if (vb == null) return -1;
-            if (typeof va === 'number' && typeof vb === 'number') return (va - vb) * sortState.dir;
-            return String(va).localeCompare(String(vb)) * sortState.dir;
-          });
+  loadAndRender();
+}
 
-          rows.forEach(tr => tbody.appendChild(tr));
-          const q = document.getElementById('q');
-          if (q && q.value) q.oninput();
-        });
-      });
-    }
+document.querySelectorAll('.preset-btn').forEach(btn => {
+  btn.addEventListener('click', () => applyPreset(btn.dataset.preset));
+});
 
-    // ===== Init =====
-    (async function init() {
-      try {
-        const cfg = await loadConfig(CONFIG_URL);
-        const cfgCur = cfg?.current ?? null;
-        const cfgOld = cfg?.old ?? null;
+// Clear preset highlight when user manually changes a dropdown
+['sel-new', 'sel-old'].forEach(id => {
+  document.getElementById(id).addEventListener('change', () => {
+    document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
+  });
+});
 
-        const [curr, prev] = await Promise.all([fetchJSON(JSON_CURRENT), fetchJSON(JSON_OLD)]);
+// Tabs
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    ['table','movers','new'].forEach(id =>
+      document.getElementById(`tab-${id}`).classList.toggle('hidden', id !== tab.dataset.tab));
+  });
+});
 
-        setStamp('csv-current', 'last-updated-current', JSON_CURRENT, curr.headers, URL_DATE_OVERRIDE || cfgCur);
-        setStamp('csv-old',     'last-updated-old',     JSON_OLD,     prev.headers, URL_OLDDATE_OVERRIDE || cfgOld);
+// Sorting
+document.querySelectorAll('thead th.sortable').forEach(th => {
+  th.addEventListener('click', () => {
+    const col = th.dataset.col;
+    if (!col) return;
+    sortState.dir = sortState.col === col ? -sortState.dir : (col === 'rank' ? 1 : -1);
+    sortState.col = col;
+    document.querySelectorAll('thead th.sortable').forEach(t => t.classList.remove('sort-asc','sort-desc'));
+    th.classList.add(sortState.dir === 1 ? 'sort-asc' : 'sort-desc');
+    renderTable();
+  });
+});
 
-        const currItems = normalizeTable(curr.data).sort((a,b)=>(b.edits||0)-(a.edits||0)).slice(0,500)
-                              .map((x,i)=>({ ...x, rank:i+1 }));
-        const prevItems = normalizeTable(prev.data);
-        const { annotated, dropped } = computeTrends(currItems, prevItems);
+// Search
+document.getElementById('q').addEventListener('input', renderTable);
 
-        renderCurrentTable(annotated);
-        renderDroppedTable(dropped);
-        hookFilter();
-        hookSorting();
-      } catch (err) {
-        document.getElementById('tbody').innerHTML =
-          `<tr><td colspan="5" style="padding:18px;color:#ffb4b4;">${String(err)}</td></tr>`;
-        const dropped = document.getElementById('dropped-body');
-        if (dropped) dropped.innerHTML = '';
-      }
-    })();
-  </script>
+// Rank filter
+document.getElementById('rank-filter').addEventListener('click', e => {
+  const btn = e.target.closest('.pill');
+  if (!btn) return;
+  topFilter = +btn.dataset.top;
+  document.querySelectorAll('#rank-filter .pill').forEach(p => p.classList.remove('active'));
+  btn.classList.add('active');
+  renderTable();
+});
+
+// Dropped toggle
+document.getElementById('dropped-toggle').addEventListener('click', function() {
+  const panel = document.getElementById('dropped-panel');
+  const isOpen = panel.style.display === 'block';
+  panel.style.display = isOpen ? 'none' : 'block';
+  this.classList.toggle('open', !isOpen);
+});
+
+// Modal close
+document.getElementById('modal-close').addEventListener('click', () =>
+  document.getElementById('modal-overlay').classList.remove('open'));
+document.getElementById('modal-overlay').addEventListener('click', e => {
+  if (e.target === document.getElementById('modal-overlay'))
+    document.getElementById('modal-overlay').classList.remove('open');
+});
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') document.getElementById('modal-overlay').classList.remove('open');
+});
+</script>
 </body>
 </html>
