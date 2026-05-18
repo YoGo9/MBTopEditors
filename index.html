@@ -472,8 +472,8 @@
         <select id="sel-old"></select>
       </div>
       <div class="preset-btns">
-        <button class="preset-btn active" data-preset="latest-prev" title="Most recent vs second most recent">Latest vs Previous</button>
-        <button class="preset-btn" data-preset="latest-oldest" title="Most recent vs very first snapshot">Latest vs Oldest</button>
+        <button class="preset-btn" data-preset="latest-prev" title="Most recent vs second most recent">Latest vs Previous</button>
+        <button class="preset-btn active" data-preset="latest-oldest" title="Most recent vs very first snapshot">Latest vs Oldest</button>
         <button class="preset-btn" data-preset="prev-before" title="Second most recent vs third most recent">Previous vs One Before</button>
       </div>
     </div>
@@ -881,13 +881,16 @@ async function loadAndRender() {
 
     snapshots.forEach((s, i) => {
       selNew.add(new Option(s.date, s.date, i===0, i===0));
-      selOld.add(new Option(s.date, s.date, i===1, i===1));
+      selOld.add(new Option(s.date, s.date, false, false));
     });
 
     if (snapshots.length === 1) {
       selOld.innerHTML = '';
       selOld.add(new Option(snapshots[0].date, snapshots[0].date, true, true));
     }
+
+    // Default: latest vs oldest
+    selOld.value = snapshots[snapshots.length - 1].date;
 
     selNew.addEventListener('change', loadAndRender);
     selOld.addEventListener('change', loadAndRender);
