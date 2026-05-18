@@ -7,12 +7,7 @@ Run it in the folder where you want the download to happen:
     cd /path/to/your/folder
     python checkmbeditors.py
 
-You will be prompted to paste the dump URL, e.g.:
-    https://data.metabrainz.org/pub/musicbrainz/data/fullexport/20260411-002149/
-
-Output files (in the same folder):
-    YYYY-MM-DD.json   — snapshot for today
-    manifest.json     — updated list of all snapshots
+You will be prompted to paste the dump URL and the snapshot date.
 """
 
 import os
@@ -22,10 +17,35 @@ import shutil
 import tarfile
 import urllib.request
 from collections import defaultdict
-from datetime import date
+from datetime import datetime
 
 APPLIED_STATUS_CODE = 2  # MusicBrainz STATUS_APPLIED
 NEEDED_TARBALLS = ["mbdump-editor.tar.bz2", "mbdump-edit.tar.bz2"]
+JSON_SUBFOLDER = "json"
+
+DATE_FORMATS = [
+    "%Y-%m-%d",       # 2026-05-17
+    "%d-%m-%Y",       # 17-05-2026
+    "%d/%m/%Y",       # 17/05/2026
+    "%m/%d/%Y",       # 05/17/2026
+    "%d-%b-%Y",       # 17-May-2026
+    "%d %b %Y",       # 17 May 2026
+    "%d %B %Y",       # 17 May 2026
+    "%B %d %Y",       # May 17 2026
+    "%b %d %Y",       # May 17 2026
+    "%d-%B-%Y",       # 17-May-2026
+]
+
+
+def parse_date(raw: str) -> str:
+    """Parse a date string in many formats, return YYYY-MM-DD."""
+    raw = raw.strip()
+    for fmt in DATE_FORMATS:
+        try:
+            return datetime.strptime(raw, fmt).strftime("%Y-%m-%d")
+        except ValueError:
+            continue
+    raise ValueError(f"Could not parse date: '{raw}'\nAccepted formats: YYYY-MM-DD, DD-MM-YYYY, DD-Mon-YYYY, etc.")
 
 
 # ---------------------------------------------------------------------------
@@ -39,7 +59,7 @@ def download_file(url: str, dest: str):
         total = resp.headers.get("Content-Length")
         total = int(total) if total else None
         downloaded = 0
-        chunk = 1024 * 1024  # 1 MB
+        chunk = 1024 * 1024
         with open(dest, "wb") as f:
             while True:
                 block = resp.read(chunk)
@@ -102,7 +122,7 @@ def extract_all(folder: str) -> tuple[str, str]:
     edit_root   = os.path.join(folder, "mbdump-edit")
 
     extract_member(editor_tar, ["mbdump/editor_sanitized", "mbdump/editor_sanitised", "mbdump/editor"], editor_root)
-    extract_member(edit_tar,   ["mbdump/edit"],                               edit_root)
+    extract_member(edit_tar,   ["mbdump/edit"], edit_root)
 
     editor_dir  = os.path.join(editor_root, "mbdump")
     editor_file = next(
@@ -218,6 +238,7 @@ def write_snapshot(path: str, rows, snapshot_date: str):
         }
         for i, (eid, name, cnt) in enumerate(rows, start=1)
     ]
+    os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
 
@@ -226,7 +247,8 @@ def write_snapshot(path: str, rows, snapshot_date: str):
 # Manifest
 # ---------------------------------------------------------------------------
 
-def update_manifest(folder: str, snapshot_date: str, filename: str):
+def update_manifest(folder: str, snapshot_date: str, relative_filename: str):
+    """relative_filename should be e.g. 'json/2026-05-17.json'"""
     manifest_path = os.path.join(folder, "manifest.json")
     if os.path.isfile(manifest_path):
         with open(manifest_path, "r", encoding="utf-8") as f:
@@ -234,11 +256,8 @@ def update_manifest(folder: str, snapshot_date: str, filename: str):
     else:
         manifest = []
 
-    # Remove any existing entry for this date, then add updated one
     manifest = [e for e in manifest if e.get("date") != snapshot_date]
-    manifest.append({"date": snapshot_date, "file": filename})
-
-    # Keep sorted newest-first
+    manifest.append({"date": snapshot_date, "file": relative_filename})
     manifest.sort(key=lambda e: e["date"], reverse=True)
 
     with open(manifest_path, "w", encoding="utf-8") as f:
@@ -271,10 +290,9 @@ def cleanup(folder: str):
 # GitHub push
 # ---------------------------------------------------------------------------
 
-def push_to_github(folder: str, snapshot_filename: str):
+def push_to_github(folder: str, relative_filename: str):
     import subprocess
 
-    json_file     = os.path.join("json", snapshot_filename)
     manifest_file = "manifest.json"
 
     def run(cmd, check=True):
@@ -288,7 +306,6 @@ def push_to_github(folder: str, snapshot_filename: str):
         r = run(["git", "rev-parse", "--is-inside-work-tree"], check=False)
         return r and r.returncode == 0
 
-    # --- Init repo if needed ---
     if not is_git_repo():
         print("  No git repo detected in this folder.")
         sys.stdout.write("  GitHub repo URL (e.g. https://github.com/YoGo9/MBTopEditors): ")
@@ -297,20 +314,12 @@ def push_to_github(folder: str, snapshot_filename: str):
         if not remote_url:
             print("  ❌ No URL provided, skipping push.")
             return
-
-        print("  Initialising git repo ...")
         if not run(["git", "init"]): return
         if not run(["git", "remote", "add", "origin", remote_url]): return
-
-        # Set default branch to main
         run(["git", "branch", "-M", "main"], check=False)
-
-        # Fetch remote so we can track it (ignore errors if repo is empty)
         run(["git", "fetch", "origin"], check=False)
-
         print(f"  ✅ Git repo initialised with remote: {remote_url}")
     else:
-        # Check remote is set; if not, ask
         r = run(["git", "remote", "get-url", "origin"], check=False)
         if r.returncode != 0:
             sys.stdout.write("  No remote 'origin' found. GitHub repo URL: ")
@@ -321,11 +330,11 @@ def push_to_github(folder: str, snapshot_filename: str):
                 return
             if not run(["git", "remote", "add", "origin", remote_url]): return
 
-    # --- Stage, commit, push ---
     print("  Running git commands ...")
-    if not run(["git", "add", json_file, manifest_file]): return
+    if not run(["git", "add", relative_filename, manifest_file]): return
 
-    commit_result = run(["git", "commit", "-m", f"snapshot {snapshot_filename.replace('.json', '')}"], check=False)
+    snapshot_date = os.path.basename(relative_filename).replace(".json", "")
+    commit_result = run(["git", "commit", "-m", f"snapshot {snapshot_date}"], check=False)
     if commit_result.returncode != 0:
         out = commit_result.stdout.strip() + commit_result.stderr.strip()
         if "nothing to commit" in out:
@@ -335,28 +344,39 @@ def push_to_github(folder: str, snapshot_filename: str):
             return
 
     if not run(["git", "push", "-u", "origin", "main"]): return
-    print(f"  ✅ Pushed {snapshot_filename} and manifest.json to GitHub.")
+    print(f"  ✅ Pushed {relative_filename} and manifest.json to GitHub.")
 
 
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
 
-
 def main():
     folder = os.getcwd()
-    snapshot_date = date.today().isoformat()  # YYYY-MM-DD
-    out_filename  = f"{snapshot_date}.json"
-    out_path      = os.path.join(folder, out_filename)
 
     sys.stdout.write("MusicBrainz Top Editors\n")
     sys.stdout.write("=" * 40 + "\n")
-    sys.stdout.write(f"Working folder:  {folder}\n")
+    sys.stdout.write(f"Working folder:  {folder}\n\n")
+
+    # --- Ask for snapshot date ---
+    sys.stdout.write("Snapshot date (e.g. 2026-05-17, 17-May-2026, 17/05/2026):\n> ")
+    sys.stdout.flush()
+    raw_date = input().strip()
+    try:
+        snapshot_date = parse_date(raw_date)
+    except ValueError as e:
+        sys.exit(f"❌ {e}")
+
+    out_filename     = f"{snapshot_date}.json"
+    relative_path    = f"{JSON_SUBFOLDER}/{out_filename}"
+    out_path         = os.path.join(folder, JSON_SUBFOLDER, out_filename)
+
     sys.stdout.write(f"Snapshot date:   {snapshot_date}\n")
-    sys.stdout.write(f"Output file:     {out_filename}\n\n")
+    sys.stdout.write(f"Output file:     {relative_path}\n\n")
+
+    # --- Ask for dump URL ---
     sys.stdout.write("Paste the dump URL (e.g. https://data.metabrainz.org/pub/musicbrainz/data/fullexport/20260411-002149/):\n> ")
     sys.stdout.flush()
-
     base_url = input().strip()
     if not base_url:
         sys.exit("❌ No URL provided.")
@@ -389,13 +409,13 @@ def main():
     # --- Write snapshot ---
     print(f"\n[4/5] Writing output ...")
     write_snapshot(out_path, top, snapshot_date)
-    print(f"  ✅ Wrote {len(top)} rows to {out_filename}")
+    print(f"  ✅ Wrote {len(top)} rows to {relative_path}")
 
     print("\n  Top 10 preview:")
     for i, (eid, name, cnt) in enumerate(top[:10], start=1):
         print(f"  {i:>2}. {name} (id {eid}) — {cnt:,} applied edits")
 
-    update_manifest(folder, snapshot_date, out_filename)
+    update_manifest(folder, snapshot_date, relative_path)
 
     # --- Cleanup ---
     print("\n[5/5] Cleanup ...")
@@ -408,9 +428,9 @@ def main():
     sys.stdout.flush()
     answer = input().strip().lower()
     if answer == "y":
-        push_to_github(folder, out_filename)
+        push_to_github(folder, relative_path)
     else:
-        print(f"  Skipped. Remember to push {out_filename} and manifest.json manually.")
+        print(f"  Skipped. Remember to push {relative_path} and manifest.json manually.")
 
 
 if __name__ == "__main__":
