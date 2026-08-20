@@ -1,13 +1,11 @@
-https://yogo9.github.io/MBTopEditors/
+# MBTopEditors
 
+This repository has been archived.
 
+The report now lives in the consolidated MusicBrainz Reports repository:
 
-The data comes from the MusicBrainz full export dumps:
+https://github.com/YoGo9/mbreports
 
-https://data.metabrainz.org/pub/musicbrainz/data/fullexport/
+Live report:
 
-In particular, I use the following dump tables:
-
-- `mbdump-editor`
-- `mbdump-edit`
-
+https://yogo9.github.io/mbreports/TopEditors/
